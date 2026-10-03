@@ -1,0 +1,8 @@
+node_modules/
+.expo/
+dist/
+.env
+*.tflite
+assets/audio/*.mp3
+assets/model/
+*.log
