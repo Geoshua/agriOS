@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useIsFocused } from 'expo-router';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
@@ -25,6 +26,7 @@ const INFERENCE_INTERVAL_MS = 1200;
 const LOCATION_REFRESH_MS = 30_000;
 
 export default function ScanScreen() {
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const isRunningRef = useRef(false);
@@ -39,6 +41,7 @@ export default function ScanScreen() {
     torch,
     activeBlock,
     setLastFrameUri,
+    lastKnownLocation,
     setLastKnownLocation,
   } = useShambaStore();
 
@@ -189,6 +192,14 @@ export default function ScanScreen() {
         onBack={() => (scanMode === 'details' ? closeDetails() : setScanMode('ar'))}
       />
 
+      {/* Contribution indicator — shown only when GPS is active */}
+      {lastKnownLocation && detent === 'closed' && (
+        <View style={[styles.networkPill, { top: insets.top + 56 }]} pointerEvents="none">
+          <View style={styles.networkDot} />
+          <Text style={styles.networkText}>Sharing with network</Text>
+        </View>
+      )}
+
       <AdvisorySheet
         disease={disease}
         confidence={confidence}
@@ -220,4 +231,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   permissionButtonText: { color: colors.white, fontSize: 17, fontWeight: '600' },
+  networkPill: {
+    position: 'absolute',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(0,0,0,0.48)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  networkDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#4ADE80' },
+  networkText: { fontSize: 12, fontWeight: '500', color: 'rgba(255,255,255,0.9)' },
 });

@@ -487,9 +487,15 @@ async function handleIngest(req, res) {
 }
 
 async function handleHeatmap(req, res) {
+  // Hub mode: include scans queued locally (not yet flushed to cloud).
+  // Cloud mode: use data ingested from all village hubs.
+  const source = ROLE === 'hub'
+    ? [...ingestedScans, ...syncQueue.filter(s => s.type === 'scan')]
+    : ingestedScans;
+
   // Aggregate disease counts by ~10 km grid cell across all contributing villages.
   const byRegion = {};
-  for (const scan of ingestedScans) {
+  for (const scan of source) {
     if (scan.lat == null) continue;
     const key = `${scan.lat},${scan.lng}`;
     if (!byRegion[key]) {
@@ -507,8 +513,8 @@ async function handleHeatmap(req, res) {
 
   json(res, 200, {
     regions,
-    total: ingestedScans.length,
-    villages: new Set(ingestedScans.map(s => s.serverId)).size,
+    total: source.length,
+    villages: new Set(source.map(s => s.serverId).filter(Boolean)).size,
   });
 }
 
@@ -550,6 +556,8 @@ const server = http.createServer(async (req, res) => {
 
     // Cloud-only routes
     if (route === 'POST /ingest')      return await handleIngest(req, res);
+
+    // All roles: heatmap (hub returns its local queue; cloud returns all ingested data)
     if (route === 'GET /heatmap')      return await handleHeatmap(req, res);
 
     json(res, 404, { error: 'not found' });
