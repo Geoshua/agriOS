@@ -196,6 +196,89 @@ async function runMockInference(): Promise<InferenceResult> {
   };
 }
 
+// ── TIER 2: Cloud offload (via local server proxy) ────────────────────────────
+// Called when all local tiers return 'unknown'.
+// The local server proxies to the cloud's larger model — phone never needs cloud credentials.
+// Long timeout (35s) — only triggered on explicit user action, not the auto-inference loop.
+
+export async function runCloudOffload(frameUri: string): Promise<InferenceResult | null> {
+  if (!LOCAL_SERVER_URL) return null;
+
+  let base64: string;
+  try {
+    base64 = await FileSystem.readAsStringAsync(frameUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  } catch {
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 35_000);
+
+  try {
+    const response = await fetch(`${LOCAL_SERVER_URL}/offload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: base64, mimeType: 'image/jpeg' }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) return null;
+    const data = await response.json() as any;
+
+    const diseaseId = DISEASE_CLASSES.includes(data.diseaseId)
+      ? (data.confidence >= CONFIDENCE_THRESHOLD ? data.diseaseId : 'unknown')
+      : 'unknown';
+
+    return {
+      diseaseId,
+      confidence: data.confidence ?? 0.5,
+      isMock: false,
+      reasoning: data.reasoning,
+      source: 'local-server', // came through local server proxy → cloud
+    };
+  } catch {
+    clearTimeout(timeout);
+    return null;
+  }
+}
+
+// ── Advisory: fetch LLM-generated advice from server ─────────────────────────
+// Calls server /advisory (Ollama local LLM → HF fallback).
+// Returns null if server unavailable — caller falls back to diseases.json text.
+
+export async function fetchAdvisory(params: {
+  diseaseId: string;
+  confidence: number;
+  soilPh?: number;
+  notes?: string;
+  language?: string;
+}): Promise<string | null> {
+  if (!LOCAL_SERVER_URL) return null;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 35_000);
+
+  try {
+    const response = await fetch(`${LOCAL_SERVER_URL}/advisory`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) return null;
+    const data = await response.json() as any;
+    return data.advice ?? null;
+  } catch {
+    clearTimeout(timeout);
+    return null;
+  }
+}
+
 // ── MAIN ENTRY POINT ──────────────────────────────────────────────────────────
 
 export async function runInference(frameUri: string): Promise<InferenceResult> {
@@ -209,6 +292,10 @@ export async function runInference(frameUri: string): Promise<InferenceResult> {
 
   // Tier 3: Mock cycling (always works)
   return runMockInference();
+
+  // NOTE: Cloud offload (Tier 2) is NOT in this loop — it's slow (35s) and
+  // should only be triggered by explicit user action ("Ask regional network")
+  // from AdvisorySheet when the result is 'unknown'. Call runCloudOffload() there.
 }
 
 // ── REAL TFLITE IMPLEMENTATION ────────────────────────────────────────────────

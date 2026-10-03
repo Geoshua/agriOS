@@ -82,30 +82,48 @@ Do not claim higher accuracy than what validation set shows. If val accuracy is 
 ## Architecture summary
 
 ```
-Scan tab (1fps loop)
-  └── runInference(frameUri)
-        0. Local agriOS server (LAN, fastest, API key stays server-side)
-        1. HF Qwen2-VL API   →  online, best accuracy
-        2. TFLite on-device  →  offline, ~87% accuracy
-        3. Mock cycling      →  dev/fallback
+PHONE (offline-first)
+├── Scan tab (1fps loop)
+│     └── runInference(frameUri)
+│           Tier 0: Hub server /classify  (LAN, 3s timeout)
+│           Tier 1: HF Qwen2-VL           (online, 10s timeout)
+│           Tier 2: TFLite on-device      (offline, uncomment when trained)
+│           Tier 3: Mock cycling          (always works)
+│
+├── AdvisorySheet
+│     ├── fetchAdvisory() → Hub /advisory → Ollama LLM → HF fallback
+│     ├── Static fallback: diseases.json (offline)
+│     ├── TTS via expo-speech (offline)
+│     ├── SpeechInput → Hub /transcribe → HF Whisper
+│     ├── "Ask regional network" button → runCloudOffload() when unknown
+│     └── handleLog → findNearestPlant (5m GPS) → SQLite
+│
+├── Map tab
+│     ├── Disease pins from SQLite (offline)
+│     └── Soil card → Hub /soil (cached) → SoilGrids direct
+│
+├── Plants tab — per-plant history + trend (offline)
+└── Report tab — summary stats (offline)
 
-AdvisorySheet
-  └── Disease info from diseases.json (offline)
-  └── TTS via expo-speech (offline)
-  └── SpeechInput → HF Whisper (online) → text fallback (offline)
-  └── handleLog → findNearestPlant (GPS 5m radius) → auto-group or create Plant
-  └── logIssue → SQLite (offline)
+HUB SERVER (Pi / laptop at co-op, LAN)
+├── /classify   → TFLite Python → HF Qwen2-VL
+├── /advisory   → Ollama Qwen2.5-3B → HF fallback (personalised, multilingual)
+├── /transcribe → HF Whisper proxy
+├── /soil       → SoilGrids with 1-hour cache (shared across all farmers)
+├── /offload    → proxy to cloud server (hard cases)
+├── /sync       → anonymised scan data queue status + manual flush
+└── background  → flushSyncQueue() every 60s when internet available
 
-Map tab
-  └── Disease pins from SQLite (offline)
-  └── Soil card → Local server /soil (cached) → SoilGrids API direct (online, optional)
+CLOUD SERVER (VPS or shared community server, internet)
+├── Same classify/soil endpoints, larger model timeouts
+├── /ingest  → receives anonymised scan batches from village hubs
+└── /heatmap → aggregated disease map across all contributing villages
 
-Plants tab
-  └── Per-plant scan history from SQLite (offline)
-  └── Trend indicator (improving/worsening/stable)
-
-Report tab
-  └── Summary stats from SQLite (offline)
+Data flow (when internet available):
+  Hub anonymises GPS to ~10km, strips images, queues scan results
+  → batch POST /ingest to cloud every 60s
+  → cloud aggregates regional disease hotspots
+  → extension officers / ministries query /heatmap for outbreak alerts
 ```
 
 ---
@@ -114,8 +132,8 @@ Report tab
 
 | File | Role |
 |---|---|
-| `lib/config.ts` | Single source for `LOCAL_SERVER_URL` (LAN server address) |
-| `lib/inference.ts` | 4-tier inference: Local server → HF → TFLite → Mock |
+| `lib/config.ts` | Single source for `LOCAL_SERVER_URL` (hub server address) |
+| `lib/inference.ts` | 4-tier inference + `runCloudOffload()` + `fetchAdvisory()` |
 | `lib/db.ts` | SQLite: issues table + plants table, migrations |
 | `lib/store.ts` | Zustand: in-memory mirror of DB, current detection |
 | `lib/stt.ts` | STT: expo-av recording + HF Whisper API |
@@ -128,5 +146,6 @@ Report tab
 | `app/(tabs)/map.tsx` | Disease pins + soil card |
 | `app/(tabs)/plants.tsx` | Plant tracking + scan history timeline |
 | `app/(tabs)/report.tsx` | Daily summary stats |
+| `server/server.mjs` | Hub + cloud server (classify, advisory, offload, sync, ingest, heatmap) |
 | `scripts/model_training/train.py` | Local GPU training script (BRACOL → TFLite) |
 | `TRAINING.md` | Full training guide for GPU PC |
