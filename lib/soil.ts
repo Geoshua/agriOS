@@ -27,6 +27,8 @@ export interface SoilAdvisory {
   generalAdvice: string;
 }
 
+import { LOCAL_SERVER_URL } from './config';
+
 // Coffee prefers pH 6.0–6.5; cassava tolerates 5.5–6.5; beans 6.0–7.0
 const COFFEE_PH_MIN = 6.0;
 const COFFEE_PH_MAX = 6.5;
@@ -45,7 +47,31 @@ type SoilGridsResponse = {
   };
 };
 
+async function fetchFromLocalServer(lat: number, lon: number): Promise<SoilProfile | null> {
+  if (!LOCAL_SERVER_URL) return null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4_000);
+  try {
+    const res = await fetch(
+      `${LOCAL_SERVER_URL}/soil?lat=${lat}&lng=${lon}`,
+      { signal: controller.signal },
+    );
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const data = await res.json() as any;
+    if (!data.ph) return null;
+    return { ...data, fetchedAt: Date.now() } as SoilProfile;
+  } catch {
+    clearTimeout(timeout);
+    return null;
+  }
+}
+
 export async function fetchSoilData(lat: number, lon: number): Promise<SoilProfile | null> {
+  // Try local server first — it caches SoilGrids responses at 250 m resolution
+  const cached = await fetchFromLocalServer(lat, lon);
+  if (cached) return cached;
+
   const params = new URLSearchParams({
     lon: String(lon),
     lat: String(lat),

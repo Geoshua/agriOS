@@ -2,24 +2,30 @@
  * Inference layer.
  *
  * Priority:
+ *   0. Local agriOS server (LAN, fastest, no API key on phone)
+ *      Run: HF_API_KEY=hf_xxx node server/server.mjs  — prints its LAN IPs on start
+ *      Set LOCAL_SERVER_URL in lib/config.ts to one of those IPs.
  *   1. HuggingFace Qwen2-VL API (online, natural language output)
  *   2. TFLite MobileNetV2 on-device (offline, when model file present — see comments)
  *   3. Mock (always works, cycles through classes deterministically)
  *
  * To switch modes:
- *   - HF online: set HF_API_KEY below (free at huggingface.co/settings/tokens)
- *   - TFLite: uncomment the TFLITE section, place model in assets/model/
+ *   - Local server (tier 0): set LOCAL_SERVER_URL in lib/config.ts
+ *   - HF online (tier 1): set HF_API_KEY below
+ *   - TFLite (tier 2): uncomment TFLITE section, place model in assets/model/
  *   - Mock: default, no config needed
  */
 
 import * as FileSystem from 'expo-file-system';
 import diseasesData from '../assets/diseases.json';
+import { LOCAL_SERVER_URL } from './config';
 
 export interface InferenceResult {
   diseaseId: string;
   confidence: number;
   isMock: boolean;
   reasoning?: string;
+  source?: 'local-server' | 'hf' | 'local-tflite' | 'mock';
 }
 
 const DISEASE_CLASSES = diseasesData.classes;
@@ -44,7 +50,54 @@ Examine this image and classify it into EXACTLY one of these disease categories:
 Respond ONLY with this JSON, nothing else:
 {"disease_id":"<id>","confidence":<0.0-1.0>,"reasoning":"<one sentence>"}`;
 
-// ── ONLINE: HF Qwen2-VL ───────────────────────────────────────────────────────
+// ── TIER 0: Local LAN server ──────────────────────────────────────────────────
+
+async function runLocalServerInference(frameUri: string): Promise<InferenceResult | null> {
+  if (!LOCAL_SERVER_URL) return null;
+
+  let base64: string;
+  try {
+    base64 = await FileSystem.readAsStringAsync(frameUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  } catch {
+    return null;
+  }
+
+  const controller = new AbortController();
+  // 3-second timeout — LAN should respond fast; miss it and fall through to HF
+  const timeout = setTimeout(() => controller.abort(), 3_000);
+
+  try {
+    const response = await fetch(`${LOCAL_SERVER_URL}/classify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: base64, mimeType: 'image/jpeg' }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) return null;
+    const data = await response.json() as any;
+
+    const diseaseId = DISEASE_CLASSES.includes(data.diseaseId)
+      ? (data.confidence >= CONFIDENCE_THRESHOLD ? data.diseaseId : 'unknown')
+      : 'unknown';
+
+    return {
+      diseaseId,
+      confidence: data.confidence ?? 0.7,
+      isMock: false,
+      reasoning: data.reasoning,
+      source: 'local-server',
+    };
+  } catch {
+    clearTimeout(timeout);
+    return null;
+  }
+}
+
+// ── TIER 1: HF Qwen2-VL (online) ─────────────────────────────────────────────
 
 async function runHFInference(frameUri: string): Promise<InferenceResult | null> {
   if (!HF_API_KEY) return null;
@@ -107,6 +160,7 @@ async function runHFInference(frameUri: string): Promise<InferenceResult | null>
       confidence: parsed.confidence ?? 0.7,
       isMock: false,
       reasoning: parsed.reasoning,
+      source: 'hf',
     };
   } catch {
     clearTimeout(timeout);
@@ -114,7 +168,7 @@ async function runHFInference(frameUri: string): Promise<InferenceResult | null>
   }
 }
 
-// ── MOCK IMPLEMENTATION ───────────────────────────────────────────────────────
+// ── TIER 3: Mock cycling ──────────────────────────────────────────────────────
 
 const MOCK_DISTRIBUTION: Record<string, number> = {
   coffee_leaf_rust: 0.30,
@@ -138,17 +192,22 @@ async function runMockInference(): Promise<InferenceResult> {
     diseaseId: confidence < CONFIDENCE_THRESHOLD ? 'unknown' : diseaseId,
     confidence,
     isMock: true,
+    source: 'mock',
   };
 }
 
 // ── MAIN ENTRY POINT ──────────────────────────────────────────────────────────
 
 export async function runInference(frameUri: string): Promise<InferenceResult> {
-  // Try HF online inference first
+  // Tier 0: Local LAN server (fastest, keeps API key off the phone)
+  const localResult = await runLocalServerInference(frameUri);
+  if (localResult) return localResult;
+
+  // Tier 1: HF online inference
   const hfResult = await runHFInference(frameUri);
   if (hfResult) return hfResult;
 
-  // Fall back to mock
+  // Tier 3: Mock cycling (always works)
   return runMockInference();
 }
 

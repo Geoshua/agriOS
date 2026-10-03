@@ -84,7 +84,8 @@ Do not claim higher accuracy than what validation set shows. If val accuracy is 
 ```
 Scan tab (1fps loop)
   └── runInference(frameUri)
-        1. HF Qwen2-VL API  →  online, best accuracy
+        0. Local agriOS server (LAN, fastest, API key stays server-side)
+        1. HF Qwen2-VL API   →  online, best accuracy
         2. TFLite on-device  →  offline, ~87% accuracy
         3. Mock cycling      →  dev/fallback
 
@@ -97,7 +98,7 @@ AdvisorySheet
 
 Map tab
   └── Disease pins from SQLite (offline)
-  └── Soil card → SoilGrids API (online, optional)
+  └── Soil card → Local server /soil (cached) → SoilGrids API direct (online, optional)
 
 Plants tab
   └── Per-plant scan history from SQLite (offline)
@@ -113,7 +114,8 @@ Report tab
 
 | File | Role |
 |---|---|
-| `lib/inference.ts` | 3-tier inference: HF → TFLite → Mock |
+| `lib/config.ts` | Single source for `LOCAL_SERVER_URL` (LAN server address) |
+| `lib/inference.ts` | 4-tier inference: Local server → HF → TFLite → Mock |
 | `lib/db.ts` | SQLite: issues table + plants table, migrations |
 | `lib/store.ts` | Zustand: in-memory mirror of DB, current detection |
 | `lib/stt.ts` | STT: expo-av recording + HF Whisper API |

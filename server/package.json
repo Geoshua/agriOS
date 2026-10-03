@@ -1,0 +1,14 @@
+{
+  "name": "agrios-server",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "agriOS local LAN inference server",
+  "scripts": {
+    "start": "node server.mjs",
+    "start:model": "MODEL_PATH=../assets/model/plant_disease.tflite node server.mjs"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {}
+}
