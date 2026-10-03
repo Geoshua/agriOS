@@ -93,6 +93,7 @@ export function buildDemoIssues(center: { lat: number; lng: number }, now = Date
         timestamp: Math.round(timestamp),
         notes: disease.id !== 'healthy' && rand() < 0.25 ? NOTES[Math.floor(rand() * NOTES.length)] : null,
         block: b.block,
+        plantId: null,
       });
     }
   }

@@ -65,7 +65,7 @@ export default function ScanScreen() {
   const confidence = currentDetection?.result.confidence ?? 0;
   const spots = currentDetection?.result.spots ?? [];
   const { state: captureState, last: lastCapture, capture } = useManualCapture(cameraRef, isRunningRef);
-  const { state: logState, log } = useLogIssue(disease, confidence, `${disease?.id}-${activeBlock}`);
+  const { state: logState, plantName: loggedPlant, log } = useLogIssue(disease, confidence, `${disease?.id}-${activeBlock}`);
 
   function openDetails() {
     if (!disease) return;
@@ -156,6 +156,7 @@ export default function ScanScreen() {
         disease={disease}
         confidence={confidence}
         logState={logState}
+        plantName={loggedPlant}
         onLog={log}
         detent={detent}
         onDetentChange={(d) => (d === 'closed' ? closeDetails() : setDetent(d))}

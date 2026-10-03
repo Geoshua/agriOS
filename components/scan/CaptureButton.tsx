@@ -102,7 +102,7 @@ export default function CaptureButton({ state, last, onPress }: { state: Capture
               <>
                 <StatusDisc size={22} color={severityOnDark[last.severity] ?? severityOnDark.unknown} kind={severityGlyph(last.severity)} />
                 <Text style={[styles.toastText, { color: g.text }]} numberOfLines={1}>
-                  Saved · {sentenceCase(last.diseaseName)} · Block {last.block}
+                  Saved · {sentenceCase(last.diseaseName)} · {last.plantName ?? `Block ${last.block}`}
                 </Text>
               </>
             ) : (

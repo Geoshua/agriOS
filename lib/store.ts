@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { IssueRecord } from './db';
+import { IssueRecord, PlantRecord } from './db';
 import { InferenceResult } from './inference';
 
 interface Detection {
@@ -22,6 +22,11 @@ interface ShambaStore {
   addIssue: (issue: IssueRecord) => void;
   setIssues: (issues: IssueRecord[]) => void;
 
+  // Tracked plants (in-memory mirror of SQLite)
+  plants: PlantRecord[];
+  addPlant: (plant: PlantRecord) => void;
+  setPlants: (plants: PlantRecord[]) => void;
+
   // Camera scanning state
   isScanning: boolean;
   setIsScanning: (scanning: boolean) => void;
@@ -42,6 +47,10 @@ export const useShambaStore = create<ShambaStore>((set) => ({
   issues: [],
   addIssue: (issue) => set((state) => ({ issues: [issue, ...state.issues] })),
   setIssues: (issues) => set({ issues }),
+
+  plants: [],
+  addPlant: (plant) => set((state) => ({ plants: [...state.plants, plant] })),
+  setPlants: (plants) => set({ plants }),
 
   isScanning: true,
   setIsScanning: (scanning) => set({ isScanning: scanning }),

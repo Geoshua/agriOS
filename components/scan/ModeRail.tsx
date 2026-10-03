@@ -145,6 +145,8 @@ export default function ModeRail({ mode, detailsEnabled, onSelect }: Props) {
           <PressableScale
             onPress={() => animateTo(false)}
             pressedScale={0.9}
+            // The tab is 30 wide; extend the touch area to the 44 dp minimum.
+            hitSlop={{ left: 10, right: 6, top: 0, bottom: 0 }}
             accessibilityRole="button"
             accessibilityLabel="Show scan modes"
             style={StyleSheet.absoluteFill}

@@ -9,6 +9,7 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="scan" options={{ title: 'Scan' }} />
       <Tabs.Screen name="map" options={{ title: 'Field Map' }} />
+      <Tabs.Screen name="plants" options={{ title: 'My Plants' }} />
       <Tabs.Screen name="report" options={{ title: 'Report' }} />
     </Tabs>
   );

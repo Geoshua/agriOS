@@ -163,12 +163,15 @@ export function LogButton({
   state,
   onPress,
   block,
+  plantName,
   height = 54,
   style,
 }: {
   state: LogState;
   onPress: () => void;
   block: string;
+  /** Plant the log was grouped with — shown instead of the block once saved. */
+  plantName?: string | null;
   height?: number;
   style?: any;
 }) {
@@ -187,7 +190,7 @@ export function LogButton({
       pressedScale={0.96}
       style={[styles.logButton, { height, borderRadius: height / 2 }, style]}
       accessibilityRole="button"
-      accessibilityLabel={state === 'saved' ? `Logged to Block ${block}` : 'Log to map'}
+      accessibilityLabel={state === 'saved' ? `Logged to ${plantName ?? `Block ${block}`}` : 'Log to map'}
     >
       <View style={[StyleSheet.absoluteFill, { borderRadius: height / 2, overflow: 'hidden' }]} pointerEvents="none">
         <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.primary }]} />
@@ -212,7 +215,7 @@ export function LogButton({
           </Animated.View>
         )}
         <Text style={styles.logText}>
-          {state === 'idle' ? 'Log to map' : state === 'saving' ? 'Saving…' : `Logged to Block ${block}`}
+          {state === 'idle' ? 'Log to map' : state === 'saving' ? 'Saving…' : `Added to ${plantName ?? `Block ${block}`}`}
         </Text>
       </Animated.View>
     </PressableScale>

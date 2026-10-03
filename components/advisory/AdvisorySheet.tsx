@@ -45,6 +45,8 @@ interface Props {
   confidence: number;
   /** Log-to-map state, shared with the detection pill so an issue is only logged once. */
   logState: LogState;
+  /** Plant the last log was grouped with, if any. */
+  plantName?: string | null;
   onLog: (notes?: string) => void;
   detent: Detent;
   onDetentChange: (d: Detent) => void;
@@ -55,7 +57,7 @@ interface Props {
 const INSET = 8;
 const RADIUS = 47;
 
-export default function AdvisorySheet({ disease: liveDisease, confidence: liveConfidence, logState, onLog: log, detent, onDetentChange, pos }: Props) {
+export default function AdvisorySheet({ disease: liveDisease, confidence: liveConfidence, logState, plantName, onLog: log, detent, onDetentChange, pos }: Props) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const activeBlock = useShambaStore((s) => s.activeBlock);
@@ -229,7 +231,7 @@ export default function AdvisorySheet({ disease: liveDisease, confidence: liveCo
         )}
 
         <View style={styles.mediumActions}>
-          <LogButton state={logState} onPress={() => log(notes)} block={activeBlock} style={{ flex: 1 }} />
+          <LogButton state={logState} onPress={() => log(notes)} block={activeBlock} plantName={plantName} style={{ flex: 1 }} />
           <PressableScale onPress={() => onDetentChange('full')} style={styles.moreButton} accessibilityLabel="More advice">
             <Text style={styles.moreText}>More</Text>
             <ChevronUp color={c.label} />
@@ -330,6 +332,7 @@ export default function AdvisorySheet({ disease: liveDisease, confidence: liveCo
           state={logState}
           onPress={() => log(notes)}
           block={activeBlock}
+          plantName={plantName}
           height={58}
           style={[styles.pinnedLog, { bottom: Math.max(insets.bottom, 16) + 10 }]}
         />
