@@ -163,7 +163,7 @@ export async function runInference(frameUri: string): Promise<InferenceResult> {
 // import labelsData from '../assets/model/labels.json';
 //
 // type LabelsJson = {
-//   index_to_shamba_id: Record<string, string>;
+//   index_to_agrios_id: Record<string, string>;
 //   input_size: number;
 //   confidence_threshold: number;
 // };
@@ -189,7 +189,7 @@ export async function runInference(frameUri: string): Promise<InferenceResult> {
 //   const model = await loadModel();
 //   const imgSize = labels.input_size ?? 224;
 //   const threshold = labels.confidence_threshold ?? CONFIDENCE_THRESHOLD;
-//   const indexMap = labels.index_to_shamba_id;
+//   const indexMap = labels.index_to_agrios_id;
 //
 //   const b64 = await FileSystem.readAsStringAsync(frameUri, { encoding: FileSystem.EncodingType.Base64 });
 //   const raw = tf.util.encodeString(b64, 'base64') as Uint8Array;

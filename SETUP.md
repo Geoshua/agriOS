@@ -1,10 +1,10 @@
-# Shamba — Setup Guide
+# agriOS — Setup Guide
 
 ## 1. Scaffold
 
 ```bash
-npx create-expo-app@latest shamba --template blank-typescript
-cd shamba
+npx create-expo-app@latest agriOS --template blank-typescript
+cd agriOS
 ```
 
 ## 2. Install dependencies

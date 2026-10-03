@@ -1,5 +1,5 @@
 """
-Shamba — Coffee Leaf Disease TFLite Model Training
+agriOS — Coffee Leaf Disease TFLite Model Training
 ====================================================
 Run this in Google Colab (GPU runtime).
 Runtime > Change runtime type > T4 GPU
@@ -13,7 +13,7 @@ Steps:
   3. Runtime > Change runtime type > T4 GPU (free)
   4. Run all cells
   5. Download 'plant_disease.tflite' + 'labels.json' from /content/output/
-  6. Place in shamba/assets/model/
+  6. Place in agriOS/assets/model/
 """
 
 # ── CELL 1: Install deps ─────────────────────────────────────────────────────
@@ -49,10 +49,10 @@ print("Files:", list(DATA_DIR.rglob("*.jpg"))[:5] if DATA_DIR.exists() else "Not
 import tensorflow as tf
 from tensorflow import keras
 
-# BRACOL class names → Shamba disease IDs
+# BRACOL class names → agriOS disease IDs
 # Adjust these keys to match actual folder names in your downloaded dataset
 CLASS_MAPPING = {
-    # Folder name in dataset → Shamba disease ID
+    # Folder name in dataset → agriOS disease ID
     "rust":         "coffee_leaf_rust",
     "miner":        "coffee_leaf_miner",
     "phoma":        "coffee_phoma",
@@ -129,12 +129,12 @@ val_gen = train_datagen.flow_from_directory(
 
 # Save the index → disease ID mapping
 keras_classes = train_gen.class_indices  # e.g. {"healthy": 0, "miner": 1, ...}
-index_to_shamba = {}
+index_to_agriOS = {}
 for folder_name, idx in keras_classes.items():
-    shamba_id = CLASS_MAPPING.get(folder_name, "unknown")
-    index_to_shamba[str(idx)] = shamba_id
+    agriOS_id = CLASS_MAPPING.get(folder_name, "unknown")
+    index_to_agriOS[str(idx)] = agriOS_id
 
-print("Class mapping:", index_to_shamba)
+print("Class mapping:", index_to_agriOS)
 print("Training samples:", train_gen.samples)
 print("Validation samples:", val_gen.samples)
 
@@ -221,7 +221,7 @@ print(f"TFLite model saved: {tflite_path} ({len(tflite_model)/1024:.0f}KB)")
 # Save label mapping
 labels_path = OUTPUT_DIR / "labels.json"
 labels_data = {
-    "index_to_shamba_id": index_to_shamba,
+    "index_to_agriOS_id": index_to_agriOS,
     "keras_class_indices": keras_classes,
     "val_accuracy": float(val_acc),
     "num_classes": NUM_CLASSES,
@@ -230,7 +230,7 @@ labels_data = {
 }
 labels_path.write_text(json.dumps(labels_data, indent=2))
 print("Labels saved:", labels_path)
-print("Mapping:", json.dumps(index_to_shamba, indent=2))
+print("Mapping:", json.dumps(index_to_agriOS, indent=2))
 
 # ── CELL 10: Verify TFLite model ─────────────────────────────────────────────
 interpreter = tf.lite.Interpreter(model_path=str(tflite_path))
@@ -252,7 +252,7 @@ print("  Test output (random image):", output)
 print("\nReady! Download from /content/output/:")
 print("  - plant_disease.tflite")
 print("  - labels.json")
-print("Place both in shamba/assets/model/")
+print("Place both in agriOS/assets/model/")
 
 # ── CELL 11: Download files ───────────────────────────────────────────────────
 # from google.colab import files

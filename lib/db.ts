@@ -20,7 +20,7 @@ async function getDb(): Promise<SQLite.SQLiteDatabase> {
   if (db) return db;
   if (!dbReady) {
     dbReady = (async () => {
-      const instance = await SQLite.openDatabaseAsync('shamba.db');
+      const instance = await SQLite.openDatabaseAsync('agriOS.db');
       await instance.execAsync(`
         CREATE TABLE IF NOT EXISTS issues (
           id INTEGER PRIMARY KEY AUTOINCREMENT,

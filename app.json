@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Shamba",
-    "slug": "shamba",
+    "name": "agriOS",
+    "slug": "agriOS",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,7 +11,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#2D6A4F"
     },
-    "scheme": "shamba",
+    "scheme": "agriOS",
     "assetBundlePatterns": [
       "assets/**",
       "assets/audio/**",
@@ -19,11 +19,11 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.shamba.app",
+      "bundleIdentifier": "com.agrios.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Shamba uses the camera to scan your crops for diseases.",
-        "NSLocationWhenInUseUsageDescription": "Shamba records the location of crop issues to show them on your field map.",
-        "NSMicrophoneUsageDescription": "Microphone access is not used by this app."
+        "NSCameraUsageDescription": "agriOS uses the camera to scan your crops for diseases.",
+        "NSLocationWhenInUseUsageDescription": "agriOS records the location of crop issues to show them on your field map.",
+        "NSMicrophoneUsageDescription": "agriOS uses the microphone to record voice observations in your local language."
       }
     },
     "android": {
@@ -35,9 +35,10 @@
         "android.permission.CAMERA",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.READ_EXTERNAL_STORAGE"
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.shamba.app",
+      "package": "com.agrios.app",
       "config": {
         "googleMaps": {
           "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
@@ -55,13 +56,13 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Shamba records the location of issues to build your field map."
+          "locationWhenInUsePermission": "agriOS records the location of issues to build your field map."
         }
       ],
       [
         "expo-av",
         {
-          "microphonePermission": false
+          "microphonePermission": "agriOS uses the microphone to record voice observations in your local language."
         }
       ]
     ],
