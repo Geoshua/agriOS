@@ -11,6 +11,15 @@ export interface IssueRecord {
   photoUri: string | null;
   timestamp: number;
   notes: string | null;
+  plantId: number | null;
+}
+
+export interface PlantRecord {
+  id: number;
+  name: string;
+  lat: number;
+  lng: number;
+  createdAt: number;
 }
 
 let db: SQLite.SQLiteDatabase | null = null;
@@ -34,7 +43,20 @@ async function getDb(): Promise<SQLite.SQLiteDatabase> {
           timestamp INTEGER NOT NULL,
           notes TEXT
         );
+        CREATE TABLE IF NOT EXISTS plants (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          lat REAL NOT NULL,
+          lng REAL NOT NULL,
+          created_at INTEGER NOT NULL
+        );
       `);
+      // Migration: add plant_id to issues if upgrading from an older install
+      try {
+        await instance.execAsync(`ALTER TABLE issues ADD COLUMN plant_id INTEGER`);
+      } catch {
+        // Column already exists — fine
+      }
       db = instance;
       return db;
     })();
@@ -42,11 +64,13 @@ async function getDb(): Promise<SQLite.SQLiteDatabase> {
   return dbReady;
 }
 
+// ── Issues ────────────────────────────────────────────────────────────────────
+
 export async function logIssue(issue: Omit<IssueRecord, 'id'>): Promise<number> {
   const db = await getDb();
   const result = await db.runAsync(
-    `INSERT INTO issues (disease_id, disease_name, severity, confidence, lat, lng, photo_uri, timestamp, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO issues (disease_id, disease_name, severity, confidence, lat, lng, photo_uri, timestamp, notes, plant_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       issue.diseaseId,
       issue.diseaseName,
@@ -57,6 +81,7 @@ export async function logIssue(issue: Omit<IssueRecord, 'id'>): Promise<number> 
       issue.photoUri ?? null,
       issue.timestamp,
       issue.notes ?? null,
+      issue.plantId ?? null,
     ]
   );
   return result.lastInsertRowId;
@@ -90,6 +115,15 @@ export async function getIssuesByDateRange(from: number, to: number): Promise<Is
   return rows.map(rowToRecord);
 }
 
+export async function getIssuesByPlant(plantId: number): Promise<IssueRecord[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<any>(
+    `SELECT * FROM issues WHERE plant_id = ? ORDER BY timestamp ASC`,
+    [plantId]
+  );
+  return rows.map(rowToRecord);
+}
+
 function rowToRecord(row: any): IssueRecord {
   return {
     id: row.id,
@@ -102,5 +136,77 @@ function rowToRecord(row: any): IssueRecord {
     photoUri: row.photo_uri,
     timestamp: row.timestamp,
     notes: row.notes,
+    plantId: row.plant_id ?? null,
   };
+}
+
+// ── Plants ────────────────────────────────────────────────────────────────────
+
+export async function createPlant(name: string, lat: number, lng: number): Promise<number> {
+  const db = await getDb();
+  const result = await db.runAsync(
+    `INSERT INTO plants (name, lat, lng, created_at) VALUES (?, ?, ?, ?)`,
+    [name, lat, lng, Date.now()]
+  );
+  return result.lastInsertRowId;
+}
+
+export async function getAllPlants(): Promise<PlantRecord[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<any>(
+    `SELECT * FROM plants ORDER BY created_at ASC`
+  );
+  return rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    lat: r.lat,
+    lng: r.lng,
+    createdAt: r.created_at,
+  }));
+}
+
+export async function renamePatient(plantId: number, name: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(`UPDATE plants SET name = ? WHERE id = ?`, [name, plantId]);
+}
+
+/** Returns the nearest plant within radiusMeters, or null if none. */
+export async function findNearestPlant(
+  lat: number,
+  lng: number,
+  radiusMeters: number,
+): Promise<PlantRecord | null> {
+  const plants = await getAllPlants();
+  let nearest: PlantRecord | null = null;
+  let nearestDist = Infinity;
+
+  for (const plant of plants) {
+    const dist = haversineMeters(lat, lng, plant.lat, plant.lng);
+    if (dist < radiusMeters && dist < nearestDist) {
+      nearest = plant;
+      nearestDist = dist;
+    }
+  }
+
+  return nearest;
+}
+
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6_371_000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Auto-generate next plant name: Plant A, Plant B, … Plant Z, Plant 27, … */
+export function nextPlantName(existingCount: number): string {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  return existingCount < 26
+    ? `Plant ${letters[existingCount]}`
+    : `Plant ${existingCount + 1}`;
 }

@@ -1,0 +1,130 @@
+# agriOS — AI Design Constraints
+
+## Who this app is for
+
+**Noor** — a smallholder coffee farmer in East Africa. Every design decision must be evaluated against her reality:
+
+- **Connectivity**: 2G or no signal in the field. Network requests time out without warning. The app must be fully usable offline. Online features are enhancements, never requirements.
+- **Hardware**: Low-end Android phones (2–3 GB RAM, ARM Cortex-A53 or equivalent). No guaranteed camera autofocus. Slow storage I/O. Battery is scarce.
+- **Literacy**: Noor may have limited reading ability. She may not read English at all. Prefer icons + colour coding over text. Any text should be short, plain, and translated or speakable.
+
+---
+
+## Hard constraints — never break these
+
+### 1. Core feature works offline
+The scan → classify → advise loop must complete without any network call. This means:
+- TFLite model is bundled in `assets/model/` (not fetched at runtime)
+- Disease advisory text comes from `assets/diseases.json` (not an API)
+- TTS uses `expo-speech` (on-device, free) as the default; ElevenLabs MP3 clips are an optional enhancement only
+
+When HF API is unavailable, the TFLite path runs. When TFLite is unavailable, the mock cycles. The app never shows a blank screen or "connect to the internet" error in the scan flow.
+
+### 2. Model files stay small
+Target: `plant_disease.tflite` ≤ 8 MB. Noor may need to receive an update over a shared WhatsApp group at 2G. Use INT8 quantisation. Do not add new model files without justification.
+
+### 3. One interaction in local language
+TTS via `expo-speech` is the minimum. Language is configurable in `lib/stt.ts → DEFAULT_LANGUAGE`. The default must be set to the likely primary language of deployment (`sw` for Swahili, etc.). Never ship with English as the only option.
+
+### 4. Human in the loop — inform, never act
+The app shows a diagnosis and a recommendation. It **never** automatically orders inputs, contacts an agronomist, or takes any action on Noor's behalf. All logging is user-initiated (the "Log this issue" button). Advisory text ends with a recommendation, not a command.
+
+### 5. No confident wrong answers
+If `confidence < confidenceThreshold` (default 0.60), always return `diseaseId: 'unknown'` and show the expert-consult advisory. Do not lower this threshold to make the UI feel more decisive. A wrong confident answer is worse than an honest "unsure".
+
+---
+
+## Performance rules
+
+- Inference loop: ≤ 1 fps (`setInterval` at 1000 ms in `scan.tsx`). Do not increase.
+- Camera frames: captured via `expo-camera` at low resolution. Never request high-res unless the user explicitly taps to capture.
+- SQLite: use the promise-lock pattern already in `lib/db.ts`. Never open multiple concurrent transactions.
+- Network: always wrap in `AbortController` with a timeout (10 s for classification, 8 s for soil data, 30 s for STT transcription).
+- Bundle size: audit any new dependency. Avoid polyfills, large icon packs, or charting libraries.
+
+---
+
+## UI / UX rules
+
+- **Large touch targets**: buttons must be at least 44 × 44 dp. Noor may be wearing gloves or have rough hands.
+- **High contrast**: use the existing green `#2D6A4F` palette. Do not introduce low-contrast text.
+- **Icons over text**: status and severity are always shown with both a colour and an icon, never colour alone (accounts for colour blindness).
+- **Progressive disclosure**: show the most critical info first (disease name + "Do this now"). Detailed treatment and soil data are below the fold.
+- **No onboarding**: assume zero training. The UI must be self-evident from first open.
+- **No logins**: no accounts, no registration, no email. All data is local.
+
+---
+
+## Data honesty rules (hackathon scoring: Data Grounding 15%)
+
+When submitting to judges:
+- Acknowledge PlantVillage's studio-image bias explicitly in the submission write-up.
+- State that BRACOL images are field-condition coffee leaf photos (directly matches scenario).
+- State that SoilGrids data is gridded at ~250 m resolution and may not reflect micro-scale field variation.
+- State confidence thresholds and what "unknown" means in the UI.
+
+Do not claim higher accuracy than what validation set shows. If val accuracy is 85%, say 85%.
+
+---
+
+## Datasets in use
+
+| Dataset | What it covers | Offline? |
+|---|---|---|
+| BRACOL | Coffee leaf disease (4 classes + healthy) | Yes — baked into TFLite model |
+| assets/diseases.json | Advisory text per disease | Yes — bundled |
+| SoilGrids (ISRIC) | Soil pH + N + clay by GPS coord | No — fetched on demand |
+| HF Whisper large-v3 | STT for 99 languages | No — falls back to text input |
+| HF Qwen2-VL-7B | VLM classification (online mode) | No — falls back to TFLite |
+
+---
+
+## Architecture summary
+
+```
+Scan tab (1fps loop)
+  └── runInference(frameUri)
+        1. HF Qwen2-VL API  →  online, best accuracy
+        2. TFLite on-device  →  offline, ~87% accuracy
+        3. Mock cycling      →  dev/fallback
+
+AdvisorySheet
+  └── Disease info from diseases.json (offline)
+  └── TTS via expo-speech (offline)
+  └── SpeechInput → HF Whisper (online) → text fallback (offline)
+  └── handleLog → findNearestPlant (GPS 5m radius) → auto-group or create Plant
+  └── logIssue → SQLite (offline)
+
+Map tab
+  └── Disease pins from SQLite (offline)
+  └── Soil card → SoilGrids API (online, optional)
+
+Plants tab
+  └── Per-plant scan history from SQLite (offline)
+  └── Trend indicator (improving/worsening/stable)
+
+Report tab
+  └── Summary stats from SQLite (offline)
+```
+
+---
+
+## File map (quick reference for new Claude Code instances)
+
+| File | Role |
+|---|---|
+| `lib/inference.ts` | 3-tier inference: HF → TFLite → Mock |
+| `lib/db.ts` | SQLite: issues table + plants table, migrations |
+| `lib/store.ts` | Zustand: in-memory mirror of DB, current detection |
+| `lib/stt.ts` | STT: expo-av recording + HF Whisper API |
+| `lib/soil.ts` | Soil data: SoilGrids REST API + advisory text |
+| `assets/diseases.json` | Offline disease knowledge base |
+| `assets/model/` | TFLite model + labels.json (gitignored, must be trained) |
+| `components/AdvisorySheet.tsx` | Disease detail sheet, log-to-map, plant association |
+| `components/SpeechInput.tsx` | Voice input UI, language picker |
+| `app/(tabs)/scan.tsx` | Camera + 1fps inference loop |
+| `app/(tabs)/map.tsx` | Disease pins + soil card |
+| `app/(tabs)/plants.tsx` | Plant tracking + scan history timeline |
+| `app/(tabs)/report.tsx` | Daily summary stats |
+| `scripts/model_training/train.py` | Local GPU training script (BRACOL → TFLite) |
+| `TRAINING.md` | Full training guide for GPU PC |

@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { logIssue } from '../lib/db';
+import { logIssue, findNearestPlant, createPlant, nextPlantName } from '../lib/db';
 import { useShambaStore } from '../lib/store';
 import SpeechInput from './SpeechInput';
 // Use AudioPlayerFallback (expo-speech, offline) until MP3s are generated.
@@ -14,6 +14,9 @@ import { playAdvisory, stopAll } from './AudioPlayerFallback';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.72;
+
+// Scans within 5 m of a known plant are grouped with it.
+const PLANT_MATCH_RADIUS_M = 5;
 
 interface Props {
   disease: any;
@@ -32,9 +35,10 @@ const SEVERITY_LABEL: Record<string, string> = {
 
 export default function AdvisorySheet({ disease, confidence, open, onClose }: Props) {
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
-  const { addIssue } = useShambaStore();
+  const { addIssue, addPlant, plants } = useShambaStore();
   const [logged, setLogged] = React.useState(false);
   const [logging, setLogging] = React.useState(false);
+  const [loggedPlantName, setLoggedPlantName] = React.useState<string | null>(null);
   const [notes, setNotes] = React.useState('');
 
   useEffect(() => {
@@ -49,6 +53,7 @@ export default function AdvisorySheet({ disease, confidence, open, onClose }: Pr
     } else if (!open) {
       stopAll();
       setLogged(false);
+      setLoggedPlantName(null);
       setNotes('');
     }
   }, [open, disease?.id ?? '']);
@@ -62,16 +67,38 @@ export default function AdvisorySheet({ disease, confidence, open, onClose }: Pr
         ? await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
         : null;
 
+      const lat = loc?.coords.latitude ?? 0;
+      const lng = loc?.coords.longitude ?? 0;
+
+      // Resolve which plant this scan belongs to
+      let plantId: number | null = null;
+      let plantName: string | null = null;
+
+      if (lat !== 0) {
+        const nearest = await findNearestPlant(lat, lng, PLANT_MATCH_RADIUS_M);
+        if (nearest) {
+          plantId = nearest.id;
+          plantName = nearest.name;
+        } else {
+          // Auto-create a new plant at this location
+          const name = nextPlantName(plants.length);
+          plantId = await createPlant(name, lat, lng);
+          plantName = name;
+          addPlant({ id: plantId, name, lat, lng, createdAt: Date.now() });
+        }
+      }
+
       const id = await logIssue({
         diseaseId: disease.id,
         diseaseName: disease.name,
         severity: disease.severity,
         confidence,
-        lat: loc?.coords.latitude ?? 0,
-        lng: loc?.coords.longitude ?? 0,
+        lat,
+        lng,
         photoUri: null,
         timestamp: Date.now(),
         notes: notes.trim() || null,
+        plantId,
       });
 
       addIssue({
@@ -80,13 +107,15 @@ export default function AdvisorySheet({ disease, confidence, open, onClose }: Pr
         diseaseName: disease.name,
         severity: disease.severity,
         confidence,
-        lat: loc?.coords.latitude ?? 0,
-        lng: loc?.coords.longitude ?? 0,
+        lat,
+        lng,
         photoUri: null,
         timestamp: Date.now(),
         notes: notes.trim() || null,
+        plantId,
       });
 
+      setLoggedPlantName(plantName);
       setLogged(true);
     } finally {
       setLogging(false);
@@ -107,7 +136,6 @@ export default function AdvisorySheet({ disease, confidence, open, onClose }: Pr
     <Modal transparent visible={open} animationType="none" onRequestClose={onClose}>
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
       <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
-        {/* Handle bar */}
         <View style={styles.handle} />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
@@ -123,26 +151,22 @@ export default function AdvisorySheet({ disease, confidence, open, onClose }: Pr
             </TouchableOpacity>
           </View>
 
-          {/* Disease name */}
           <Text style={styles.diseaseName}>{disease.name}</Text>
           {disease.scientificName && (
             <Text style={styles.scientificName}>{disease.scientificName}</Text>
           )}
           <Text style={styles.confidence}>{Math.round(confidence * 100)}% confidence</Text>
 
-          {/* Description */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>What it is</Text>
             <Text style={styles.sectionBody}>{disease.description}</Text>
           </View>
 
-          {/* Immediate action */}
           <View style={[styles.section, styles.actionSection]}>
             <Text style={styles.sectionLabel}>Do this now</Text>
             <Text style={styles.sectionBody}>{disease.immediateAction}</Text>
           </View>
 
-          {/* Treatment */}
           {disease.treatment && (
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>Treatment</Text>
@@ -150,7 +174,6 @@ export default function AdvisorySheet({ disease, confidence, open, onClose }: Pr
             </View>
           )}
 
-          {/* Yield impact */}
           {disease.yieldImpact && (
             <View style={styles.yieldWarning}>
               <Ionicons name="trending-down" size={16} color="#E53E3E" />
@@ -158,7 +181,6 @@ export default function AdvisorySheet({ disease, confidence, open, onClose }: Pr
             </View>
           )}
 
-          {/* Unknown / low confidence disclaimer */}
           {disease.id === 'unknown' && (
             <View style={styles.expertNote}>
               <Ionicons name="person" size={16} color="#4B5563" />
@@ -166,7 +188,7 @@ export default function AdvisorySheet({ disease, confidence, open, onClose }: Pr
             </View>
           )}
 
-          {/* Voice observation input */}
+          {/* Voice observation */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Your observations</Text>
             <Text style={styles.observationHint}>Describe what you see — in any language.</Text>
@@ -182,7 +204,6 @@ export default function AdvisorySheet({ disease, confidence, open, onClose }: Pr
             )}
           </View>
 
-          {/* Replay audio */}
           <TouchableOpacity
             style={styles.audioButton}
             onPress={() => disease && playAdvisory(disease.id)}
@@ -202,6 +223,14 @@ export default function AdvisorySheet({ disease, confidence, open, onClose }: Pr
               {logged ? 'Logged to field map' : logging ? 'Saving...' : 'Log this issue to map'}
             </Text>
           </TouchableOpacity>
+
+          {/* Plant association feedback */}
+          {logged && loggedPlantName && (
+            <View style={styles.plantTag}>
+              <Ionicons name="leaf" size={14} color="#2D6A4F" />
+              <Text style={styles.plantTagText}>Added to {loggedPlantName}</Text>
+            </View>
+          )}
         </ScrollView>
       </Animated.View>
     </Modal>
@@ -248,4 +277,6 @@ const styles = StyleSheet.create({
   logButtonDone: { backgroundColor: '#38A169' },
   logButtonLoading: { opacity: 0.7 },
   logButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  plantTag: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, paddingVertical: 6 },
+  plantTagText: { fontSize: 13, color: '#2D6A4F', fontWeight: '500' },
 });
