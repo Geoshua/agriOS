@@ -11,7 +11,7 @@ cd agriOS
 
 ```bash
 npx expo install expo-camera expo-location expo-audio expo-asset expo-sqlite \
-  expo-file-system react-native-maps zustand react-native-reanimated \
+  expo-file-system expo-image zustand react-native-reanimated \
   react-native-worklets react-native-gesture-handler expo-router @expo/vector-icons \
   expo-speech expo-blur react-native-svg expo-splash-screen
 ```
@@ -63,11 +63,9 @@ import { playAdvisory, stopAll } from '../AudioPlayerFallback';
 import { playAdvisory, stopAll } from '../AudioPlayer';
 ```
 
-## Google Maps API key
+## Map tiles
 
-For the map screen on Android, add your key to `app.json`:
-```json
-"android": { "config": { "googleMaps": { "apiKey": "YOUR_KEY" } } }
-```
-
-Get one free at console.cloud.google.com → Maps SDK for Android.
+The Field Map draws OpenStreetMap tiles itself (`components/map/TileMap.tsx`),
+so no Google Maps API key is needed. Tiles are disk-cached for offline use.
+Follow the OSM tile usage policy (https://operations.osmfoundation.org/policies/tiles/);
+for heavy use, point `TILE_URL` at your own or a commercial tile server.

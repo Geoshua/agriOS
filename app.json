@@ -33,12 +33,7 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.agrios.app",
-      "config": {
-        "googleMaps": {
-          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
-        }
-      }
+      "package": "com.agrios.app"
     },
     "web": {
       "bundler": "metro",
@@ -69,7 +64,8 @@
         {
           "backgroundColor": "#2D6A4F"
         }
-      ]
+      ],
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true
