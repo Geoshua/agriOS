@@ -1,0 +1,103 @@
+{
+  "diseases": {
+    "coffee_leaf_rust": {
+      "id": "coffee_leaf_rust",
+      "name": "Coffee Leaf Rust",
+      "scientificName": "Hemileia vastatrix",
+      "severity": "high",
+      "color": "#E53E3E",
+      "icon": "alert-circle",
+      "description": "Orange or yellow powdery spots on the underside of leaves. Spreads fast in wet, warm weather.",
+      "immediateAction": "Remove and burn heavily affected branches. Do not compost them.",
+      "treatment": "Apply copper-based fungicide (e.g. Copper Oxychloride) within 3 days. Repeat every 2 weeks during wet season.",
+      "urgencyDays": 3,
+      "yieldImpact": "Can reduce yield by 30–50% if untreated.",
+      "datasetSource": "BRACOL",
+      "audio": "coffee_leaf_rust"
+    },
+    "coffee_leaf_miner": {
+      "id": "coffee_leaf_miner",
+      "name": "Coffee Leaf Miner",
+      "scientificName": "Leucoptera coffeella",
+      "severity": "medium",
+      "color": "#DD6B20",
+      "icon": "warning",
+      "description": "Small blister-like mines on leaf surface, caused by caterpillars tunneling inside the leaf.",
+      "immediateAction": "Pick off and destroy affected leaves. Check surrounding plants for spread.",
+      "treatment": "Apply neem-based insecticide or pyrethroid spray. Target early morning when insects are active.",
+      "urgencyDays": 7,
+      "yieldImpact": "Can cause 20–30% defoliation if outbreak is severe.",
+      "datasetSource": "BRACOL",
+      "audio": "coffee_leaf_miner"
+    },
+    "coffee_phoma": {
+      "id": "coffee_phoma",
+      "name": "Phoma Leaf Spot",
+      "scientificName": "Phoma tarda",
+      "severity": "medium",
+      "color": "#DD6B20",
+      "icon": "warning",
+      "description": "Dark brown spots with yellow halo on leaves, often after cold or rainy periods at high altitude.",
+      "immediateAction": "Remove affected leaves. Improve air circulation by pruning dense canopy.",
+      "treatment": "Apply copper-based or systemic fungicide. Avoid overhead irrigation.",
+      "urgencyDays": 7,
+      "yieldImpact": "Reduces photosynthesis; severe cases cause early leaf drop.",
+      "datasetSource": "BRACOL",
+      "audio": "coffee_phoma"
+    },
+    "coffee_brown_eye": {
+      "id": "coffee_brown_eye",
+      "name": "Brown Eye Spot",
+      "scientificName": "Cercospora coffeicola",
+      "severity": "low",
+      "color": "#D69E2E",
+      "icon": "information-circle",
+      "description": "Circular brown spots with a lighter center — looks like an eye. Common in young plants or nutrient-stressed trees.",
+      "immediateAction": "Check soil nutrients — often linked to nitrogen or potassium deficiency.",
+      "treatment": "Apply balanced fertilizer. Use copper spray if spots are spreading rapidly.",
+      "urgencyDays": 14,
+      "yieldImpact": "Mainly cosmetic unless plant is already stressed. Address nutrition first.",
+      "datasetSource": "BRACOL",
+      "audio": "coffee_brown_eye"
+    },
+    "healthy": {
+      "id": "healthy",
+      "name": "Healthy Plant",
+      "scientificName": null,
+      "severity": "none",
+      "color": "#38A169",
+      "icon": "checkmark-circle",
+      "description": "No disease detected. This plant looks healthy.",
+      "immediateAction": "Continue regular monitoring. Check again after rain.",
+      "treatment": "Maintain regular fertilization schedule and canopy management.",
+      "urgencyDays": null,
+      "yieldImpact": null,
+      "datasetSource": "PlantVillage",
+      "audio": "healthy"
+    },
+    "unknown": {
+      "id": "unknown",
+      "name": "Not Sure",
+      "scientificName": null,
+      "severity": "unknown",
+      "color": "#718096",
+      "icon": "help-circle",
+      "description": "The image isn't clear enough to identify the problem with confidence.",
+      "immediateAction": "Take a closer, clearer photo in good light. If problem persists, contact your extension officer.",
+      "treatment": "Do not apply treatment without a confident diagnosis.",
+      "urgencyDays": null,
+      "yieldImpact": null,
+      "datasetSource": null,
+      "audio": "unknown"
+    }
+  },
+  "classes": [
+    "coffee_leaf_rust",
+    "coffee_leaf_miner",
+    "coffee_phoma",
+    "coffee_brown_eye",
+    "healthy",
+    "unknown"
+  ],
+  "confidenceThreshold": 0.6
+}
