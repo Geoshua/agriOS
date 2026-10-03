@@ -12,7 +12,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ScrollView, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Extrapolation,
@@ -36,6 +36,8 @@ import { makeStyles, sentenceCase, spring, useTheme } from '../../lib/theme';
 import { withAlpha } from '../../lib/useTween';
 import type { LogState } from '../../lib/useLogIssue';
 import { useShambaStore } from '../../lib/store';
+import { fetchAdvisory, runCloudOffload } from '../../lib/inference';
+import { queueOffload } from '../../lib/db';
 
 export type Detent = 'closed' | 'medium' | 'full';
 const DETENT_POS: Record<Detent, number> = { closed: 0, medium: 1, full: 2 };
@@ -61,6 +63,8 @@ export default function AdvisorySheet({ disease: liveDisease, confidence: liveCo
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const activeBlock = useShambaStore((s) => s.activeBlock);
+  const lastFrameUri = useShambaStore((s) => s.lastFrameUri);
+  const lastKnownLocation = useShambaStore((s) => s.lastKnownLocation);
   const { c, g, scheme } = useTheme();
   const styles = useStyles();
   // Sheet ground fades from clear (glass detent) to opaque (full detent).
@@ -80,6 +84,29 @@ export default function AdvisorySheet({ disease: liveDisease, confidence: liveCo
   useEffect(() => {
     if (detent === 'closed') setNotes('');
   }, [detent, disease?.id]);
+
+  // LLM-generated advisory text (from Ollama via hub server). Null = server unavailable.
+  const [llmAdvice, setLlmAdvice] = useState<string | null>(null);
+  const [llmLoading, setLlmLoading] = useState(false);
+
+  // Cloud offload state for unknown disease ("Ask regional network" button).
+  const [offloadState, setOffloadState] = useState<'idle' | 'loading' | 'queued' | 'done'>('idle');
+
+  // Fetch LLM advisory when the full sheet opens. Fires each time detent or disease changes.
+  useEffect(() => {
+    if (detent !== 'full' || !disease) return;
+    setLlmAdvice(null);
+    setLlmLoading(true);
+    let cancelled = false;
+    fetchAdvisory({ diseaseId: disease.id, confidence, language: 'English' })
+      .then(advice => { if (!cancelled) { setLlmLoading(false); setLlmAdvice(advice); } })
+      .catch(() => { if (!cancelled) setLlmLoading(false); });
+    return () => { cancelled = true; };
+  }, [detent, disease?.id]);
+
+  useEffect(() => {
+    if (detent === 'closed') { setLlmAdvice(null); setOffloadState('idle'); }
+  }, [detent]);
 
   // Full content is mounted only while expanded so its sections stagger in each time.
   const [fullMounted, setFullMounted] = useState(detent === 'full');
@@ -170,6 +197,27 @@ export default function AdvisorySheet({ disease: liveDisease, confidence: liveCo
     Share.share({
       message: `${disease.name}${disease.scientificName ? ` (${disease.scientificName})` : ''} — ${pct}% match, Block ${activeBlock}.\n\n${disease.description}\n\nDo this now: ${disease.immediateAction}`,
     });
+  }
+
+  async function handleCloudOffload() {
+    if (!lastFrameUri || offloadState !== 'idle') return;
+    setOffloadState('loading');
+    const result = await runCloudOffload(lastFrameUri);
+    if (result) {
+      setOffloadState('done');
+    } else {
+      // Hub unreachable — queue for next time phone/hub connects
+      await queueOffload({
+        framePath: lastFrameUri,
+        diseaseId: disease.id,
+        confidence,
+        lat: lastKnownLocation?.lat ?? null,
+        lng: lastKnownLocation?.lng ?? null,
+        createdAt: Date.now(),
+        status: 'pending',
+      });
+      setOffloadState('queued');
+    }
   }
 
   return (
@@ -286,8 +334,23 @@ export default function AdvisorySheet({ disease: liveDisease, confidence: liveCo
               <Text style={styles.card}>{disease.description}</Text>
             </Animated.View>
 
+            {/* AI Advisory — fetched from Ollama via hub; falls back silently to nothing */}
+            {(llmLoading || llmAdvice) && (
+              <Animated.View entering={FadeInDown.duration(320).delay(220)} style={styles.section}>
+                <Text style={styles.sectionTitle}>AI Advisory</Text>
+                {llmLoading ? (
+                  <View style={styles.card}>
+                    <ActivityIndicator color={c.label} style={{ marginVertical: 4 }} />
+                    <Text style={[styles.aiHint]}>Getting personalised advice from local server…</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.card}>{llmAdvice}</Text>
+                )}
+              </Animated.View>
+            )}
+
             {treatment.length > 0 && (
-              <Animated.View entering={FadeInDown.duration(320).delay(240)} style={styles.section}>
+              <Animated.View entering={FadeInDown.duration(320).delay(260)} style={styles.section}>
                 <Text style={styles.sectionTitle}>Treatment</Text>
                 <NumberedList steps={treatment} />
               </Animated.View>
@@ -312,6 +375,32 @@ export default function AdvisorySheet({ disease: liveDisease, confidence: liveCo
                 </View>
               </Animated.View>
             ) : null}
+
+            {/* Ask regional network — only shown for unknown disease */}
+            {disease.id === 'unknown' && (
+              <Animated.View entering={FadeInDown.duration(320).delay(390)} style={styles.section}>
+                <PressableScale
+                  onPress={handleCloudOffload}
+                  disabled={offloadState !== 'idle'}
+                  style={[styles.offloadButton, offloadState !== 'idle' && styles.offloadButtonDone]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ask the regional network for a second opinion"
+                >
+                  {offloadState === 'loading' ? (
+                    <ActivityIndicator color={c.label} size="small" />
+                  ) : (
+                    <Text style={styles.offloadText}>
+                      {offloadState === 'idle' && 'Ask regional network'}
+                      {offloadState === 'queued' && '✓ Queued — will send when in range'}
+                      {offloadState === 'done' && '✓ Sent to regional network'}
+                    </Text>
+                  )}
+                </PressableScale>
+                {offloadState === 'queued' && (
+                  <Text style={styles.offloadHint}>Your phone will retry automatically next time it reaches the hub.</Text>
+                )}
+              </Animated.View>
+            )}
           </ScrollView>
         )}
 
@@ -396,12 +485,23 @@ const useStyles = makeStyles((c, g) => ({
   section: { gap: 8 },
   sectionTitle: { fontSize: 20, fontWeight: '700', paddingHorizontal: 4, color: c.label },
   card: { padding: 16, borderRadius: 26, backgroundColor: c.card, fontSize: 17, lineHeight: 25, color: c.labelStrong, overflow: 'hidden' },
+  aiHint: { fontSize: 15, color: c.labelSecondary, textAlign: 'center', marginTop: 4 },
   notesCard: { padding: 16, gap: 10, borderRadius: 26, backgroundColor: c.card },
   notesHint: { fontSize: 15, lineHeight: 21, color: c.labelSecondary },
   impact: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', padding: 16, borderRadius: 26, backgroundColor: c.card },
   impactIcon: { width: 32, height: 32, borderRadius: 9, backgroundColor: '#C93400', alignItems: 'center', justifyContent: 'center' },
   impactTitle: { fontSize: 17, fontWeight: '600', color: c.label },
   impactText: { fontSize: 16, lineHeight: 23, color: c.labelSecondary },
+  offloadButton: {
+    height: 54,
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: c.fill,
+  },
+  offloadButtonDone: { opacity: 0.65 },
+  offloadText: { fontSize: 17, fontWeight: '600', color: c.label },
+  offloadHint: { fontSize: 14, lineHeight: 20, color: c.labelSecondary, paddingHorizontal: 4 },
   fade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 130 },
   pinnedLog: { position: 'absolute', left: 20, right: 20 },
 }));

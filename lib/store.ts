@@ -38,6 +38,14 @@ interface ShambaStore {
   setTorch: (on: boolean) => void;
   activeBlock: FieldBlock;
   setActiveBlock: (block: FieldBlock) => void;
+
+  // Last captured frame URI — used by AdvisorySheet for cloud offload queuing
+  lastFrameUri: string | null;
+  setLastFrameUri: (uri: string | null) => void;
+
+  // Last known GPS — updated every 30s, passed to /classify for data contribution
+  lastKnownLocation: { lat: number; lng: number } | null;
+  setLastKnownLocation: (loc: { lat: number; lng: number } | null) => void;
 }
 
 export const useShambaStore = create<ShambaStore>((set) => ({
@@ -61,4 +69,10 @@ export const useShambaStore = create<ShambaStore>((set) => ({
   setTorch: (on) => set({ torch: on }),
   activeBlock: 'C',
   setActiveBlock: (block) => set({ activeBlock: block }),
+
+  lastFrameUri: null,
+  setLastFrameUri: (uri) => set({ lastFrameUri: uri }),
+
+  lastKnownLocation: null,
+  setLastKnownLocation: (loc) => set({ lastKnownLocation: loc }),
 }));
