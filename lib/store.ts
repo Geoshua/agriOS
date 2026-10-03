@@ -7,14 +7,15 @@ interface Detection {
   timestamp: number;
 }
 
+export type ScanMode = 'ar' | 'camera' | 'details';
+
+export const FIELD_BLOCKS = ['A', 'B', 'C', 'D'] as const;
+export type FieldBlock = (typeof FIELD_BLOCKS)[number];
+
 interface ShambaStore {
   // Current detection from camera
   currentDetection: Detection | null;
   setCurrentDetection: (d: Detection | null) => void;
-
-  // Advisory sheet
-  advisoryOpen: boolean;
-  setAdvisoryOpen: (open: boolean) => void;
 
   // Logged issues (in-memory mirror of SQLite)
   issues: IssueRecord[];
@@ -24,14 +25,19 @@ interface ShambaStore {
   // Camera scanning state
   isScanning: boolean;
   setIsScanning: (scanning: boolean) => void;
+
+  // Scan screen controls. 'details' = the advisory sheet is up (scanning pauses).
+  scanMode: ScanMode;
+  setScanMode: (mode: ScanMode) => void;
+  torch: boolean;
+  setTorch: (on: boolean) => void;
+  activeBlock: FieldBlock;
+  setActiveBlock: (block: FieldBlock) => void;
 }
 
 export const useShambaStore = create<ShambaStore>((set) => ({
   currentDetection: null,
   setCurrentDetection: (d) => set({ currentDetection: d }),
-
-  advisoryOpen: false,
-  setAdvisoryOpen: (open) => set({ advisoryOpen: open }),
 
   issues: [],
   addIssue: (issue) => set((state) => ({ issues: [issue, ...state.issues] })),
@@ -39,4 +45,11 @@ export const useShambaStore = create<ShambaStore>((set) => ({
 
   isScanning: true,
   setIsScanning: (scanning) => set({ isScanning: scanning }),
+
+  scanMode: 'ar',
+  setScanMode: (mode) => set({ scanMode: mode }),
+  torch: false,
+  setTorch: (on) => set({ torch: on }),
+  activeBlock: 'C',
+  setActiveBlock: (block) => set({ activeBlock: block }),
 }));

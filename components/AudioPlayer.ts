@@ -1,6 +1,4 @@
-import { Audio } from 'expo-av';
-
-const soundCache: Record<string, Audio.Sound> = {};
+import { AudioPlayer, createAudioPlayer } from 'expo-audio';
 
 // Map disease IDs to bundled audio assets
 const AUDIO_ASSETS: Record<string, any> = {
@@ -12,37 +10,43 @@ const AUDIO_ASSETS: Record<string, any> = {
   unknown: require('../assets/audio/unknown.mp3'),
 };
 
-export async function playAdvisory(diseaseId: string): Promise<void> {
+export interface PlaybackHandlers {
+  /** Called once the clip finishes or fails to play. */
+  onDone?: () => void;
+}
+
+let current: AudioPlayer | null = null;
+
+export async function playAdvisory(diseaseId: string, handlers: PlaybackHandlers = {}): Promise<void> {
   const asset = AUDIO_ASSETS[diseaseId];
-  if (!asset) return;
+  if (!asset) return handlers.onDone?.();
 
   // Stop anything currently playing
   await stopAll();
 
   try {
-    if (soundCache[diseaseId]) {
-      await soundCache[diseaseId].replayAsync();
-      return;
-    }
-    const { sound } = await Audio.Sound.createAsync(asset, { shouldPlay: true });
-    soundCache[diseaseId] = sound;
-    sound.setOnPlaybackStatusUpdate(status => {
-      if (status.isLoaded && status.didJustFinish) {
-        sound.unloadAsync();
-        delete soundCache[diseaseId];
+    const player = createAudioPlayer(asset);
+    current = player;
+    const subscription = player.addListener('playbackStatusUpdate', (status) => {
+      if (status.didJustFinish) {
+        subscription.remove();
+        player.remove();
+        if (current === player) current = null;
+        handlers.onDone?.();
       }
     });
+    player.play();
   } catch (e) {
     console.warn('Audio playback failed:', e);
+    handlers.onDone?.();
   }
 }
 
 export async function stopAll(): Promise<void> {
-  for (const [id, sound] of Object.entries(soundCache)) {
-    try {
-      await sound.stopAsync();
-      await sound.unloadAsync();
-    } catch (_) {}
-    delete soundCache[id];
-  }
+  if (!current) return;
+  try {
+    current.pause();
+    current.remove();
+  } catch (_) {}
+  current = null;
 }

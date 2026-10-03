@@ -1,0 +1,123 @@
+/**
+ * Glass — the Liquid Glass material from the design.
+ *
+ * Layers (bottom → top):
+ *   1. Backdrop blur
+ *   2. Tint fill (dark: rgba(24,24,26,.56), light: rgba(250,250,252,.74))
+ *   3. Radial specular highlight from the top-left
+ *   4. Rim: bright top edge, hairline sides, dim bottom edge
+ * plus a soft drop shadow on iOS.
+ *
+ * `tone` is either fixed ('dark' | 'light') or a shared value 0→1 that blends
+ * dark → light, so a control can change material smoothly (the tab bar does
+ * this when moving between the camera and the map/report screens).
+ */
+
+import React, { useState } from 'react';
+import { Platform, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import { BlurView } from 'expo-blur';
+import Animated, { AnimatedStyle, SharedValue, useAnimatedStyle } from 'react-native-reanimated';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { glass, GlassTone, useTheme } from '../../lib/theme';
+
+interface GlassProps {
+  radius: number;
+  tone?: GlassTone | SharedValue<number>;
+  style?: StyleProp<AnimatedStyle<ViewStyle>>;
+  /** Height of the highlight ellipse (design: 90% for pills, 60% for tall rails, 50% for sheets). */
+  highlightHeight?: string;
+  pointerEvents?: 'box-none' | 'none' | 'auto' | 'box-only';
+  children?: React.ReactNode;
+}
+
+/** Backdrop blur strength — kept low so the scene behind stays legible through the glass. */
+const GLASS_BLUR = 22;
+
+let gradientSeq = 0;
+
+export default function Glass({ radius, tone: toneProp, style, highlightHeight = '90%', pointerEvents, children }: GlassProps) {
+  const theme = useTheme();
+  // Follows the phone's appearance unless a tone is given.
+  const tone = toneProp ?? theme.tone;
+  const animated = typeof tone !== 'string';
+  const fixed = animated ? null : glass[tone as GlassTone];
+
+  return (
+    <Animated.View pointerEvents={pointerEvents} style={[styles.shadow, { borderRadius: radius }, fixed && { shadowOpacity: fixed.shadowOpacity }, style]}>
+      <View style={[StyleSheet.absoluteFill, { borderRadius: radius, overflow: 'hidden' }]} pointerEvents="none">
+        {animated ? (
+          <>
+            <Backdrop intensity={GLASS_BLUR} tint="default" />
+            <ToneLayer tone={tone as SharedValue<number>} which="dark" radius={radius} highlightHeight={highlightHeight} />
+            <ToneLayer tone={tone as SharedValue<number>} which="light" radius={radius} highlightHeight={highlightHeight} />
+          </>
+        ) : (
+          <>
+            <Backdrop intensity={GLASS_BLUR} tint={tone === 'dark' ? 'dark' : 'light'} />
+            <Material which={tone as GlassTone} radius={radius} highlightHeight={highlightHeight} />
+          </>
+        )}
+      </View>
+      {children}
+    </Animated.View>
+  );
+}
+
+/**
+ * Backdrop blur — iOS only. Android blur needs the content behind wrapped in a
+ * BlurTargetView, and our backdrops (camera preview, Google Map) are native
+ * surfaces it can't capture, so Android glass is a translucent tint instead.
+ */
+export function Backdrop({ intensity, tint }: { intensity: number; tint: 'default' | 'dark' | 'light' }) {
+  if (Platform.OS !== 'ios') return null;
+  return <BlurView intensity={intensity} tint={tint} style={StyleSheet.absoluteFill} />;
+}
+
+function ToneLayer({ tone, which, radius, highlightHeight }: { tone: SharedValue<number>; which: GlassTone; radius: number; highlightHeight: string }) {
+  const style = useAnimatedStyle(() => ({ opacity: which === 'light' ? tone.value : 1 - tone.value }));
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, style]}>
+      <Material which={which} radius={radius} highlightHeight={highlightHeight} />
+    </Animated.View>
+  );
+}
+
+function Material({ which, radius, highlightHeight }: { which: GlassTone; radius: number; highlightHeight: string }) {
+  const t = glass[which];
+  const [id] = useState(() => `glass${gradientSeq++}`);
+  return (
+    <>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: t.fill }]} />
+      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+        <Defs>
+          <RadialGradient id={id} cx="25%" cy="0%" rx="130%" ry={highlightHeight} fx="25%" fy="0%">
+            <Stop offset="0" stopColor="#fff" stopOpacity={t.highlight} />
+            <Stop offset="0.55" stopColor="#fff" stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
+      </Svg>
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            borderRadius: radius,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: t.rim,
+            borderTopWidth: 1,
+            borderTopColor: t.rimTop,
+            borderBottomWidth: 1,
+            borderBottomColor: t.rimBottom,
+          },
+        ]}
+      />
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  shadow: Platform.select({
+    ios: { shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 11, shadowOffset: { width: 0, height: 7 } },
+    default: {},
+  }) as ViewStyle,
+});

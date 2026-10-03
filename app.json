@@ -5,13 +5,8 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#2D6A4F"
-    },
-    "scheme": "agriOS",
+    "userInterfaceStyle": "automatic",
+    "scheme": "agrios",
     "assetBundlePatterns": [
       "assets/**",
       "assets/audio/**",
@@ -60,9 +55,19 @@
         }
       ],
       [
-        "expo-av",
+        "expo-audio",
         {
           "microphonePermission": "agriOS uses the microphone to record voice observations in your local language."
+        }
+      ],
+      "expo-font",
+      "expo-sqlite",
+      "expo-status-bar",
+      "expo-asset",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#2D6A4F"
         }
       ]
     ],

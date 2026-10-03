@@ -1,205 +1,350 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
-import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import MapView, { Circle, Marker, PROVIDER_GOOGLE, Region, UrlTile } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
+import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { getAllIssues, IssueRecord } from '../../lib/db';
-import { useShambaStore } from '../../lib/store';
 import { fetchSoilData, getSoilAdvisory, SoilProfile } from '../../lib/soil';
+import { useShambaStore } from '../../lib/store';
+import { colors, heat, makeStyles, severityPin, spring, useTheme } from '../../lib/theme';
+import { useTween, withAlpha } from '../../lib/useTween';
+import { SIDE, useChromeInsets } from '../../lib/layout';
+import ScreenTransition from '../../components/glass/ScreenTransition';
+import Glass from '../../components/glass/Glass';
+import GlassSegmented from '../../components/glass/GlassSegmented';
+import PressableScale from '../../components/glass/PressableScale';
+import { Heat, Locate, MapPin } from '../../components/glass/Icons';
+import { BlockLabel, HealthLegend, PinsLegend, Pin, Popover, POPOVER_WIDTH, SoilCard } from '../../components/map/MapParts';
 
-const SEVERITY_RADIUS: Record<string, number> = {
-  high: 30,
-  medium: 20,
-  low: 12,
-  none: 8,
-  unknown: 15,
-};
+type Layer = 'pins' | 'health';
 
-const SEVERITY_COLOR: Record<string, string> = {
-  high: '#E53E3E',
-  medium: '#DD6B20',
-  low: '#D69E2E',
-  none: '#38A169',
-  unknown: '#718096',
-};
+const ZONE_RADIUS: Record<string, number> = { high: 30, medium: 22, low: 16, none: 12, unknown: 16 };
+const HEAT_RADIUS: Record<string, number> = { high: 48, medium: 40, low: 32, none: 42, unknown: 28 };
+const SEVERITY_RANK: Record<string, number> = { high: 4, medium: 3, low: 2, unknown: 1, none: 0 };
 
-const PH_STATUS_COLOR: Record<string, string> = {
-  low: '#DD6B20',
-  optimal: '#38A169',
-  high: '#3B82F6',
-};
+// OpenStreetMap tiles replace the platform base map. Google's tiles need an
+// authorised API key, which Expo Go doesn't provide for this app (the map
+// showed the Google logo but no tiles). OSM has no dark style, so tiles stay
+// light in dark mode. Usage policy: https://operations.osmfoundation.org/policies/tiles/
+const OPEN_TILES = true;
+const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+// Muted Google styles, used if OPEN_TILES is turned off (e.g. with a real Maps key).
+const MUTED_STYLE = [
+  { elementType: 'geometry', stylers: [{ saturation: -60 }, { lightness: 15 }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+];
+const DARK_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#1d2420' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#8f9a92' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#141a16' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2c3530' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1a22' }] },
+  { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#1f2a22' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+];
 
 export default function MapScreen() {
+  const { width, height } = useWindowDimensions();
+  const { top, accessoryBottom } = useChromeInsets();
+  const mapRef = useRef<MapView>(null);
+  const { c, scheme } = useTheme();
+  const styles = useStyles();
+  const storeIssues = useShambaStore((s) => s.issues);
+
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [locating, setLocating] = useState(true);
   const [issues, setIssues] = useState<IssueRecord[]>([]);
-  const [selected, setSelected] = useState<IssueRecord | null>(null);
-  const [soilProfile, setSoilProfile] = useState<SoilProfile | null>(null);
-  const [soilExpanded, setSoilExpanded] = useState(true);
-  const storeIssues = useShambaStore(s => s.issues);
+  const [layer, setLayer] = useState<Layer>('pins');
+  const [selected, setSelected] = useState<{ issue: IssueRecord; x: number; y: number } | null>(null);
+  const [tracking, setTracking] = useState(true);
+  const [soil, setSoil] = useState<SoilProfile | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
-        const loc = await Location.getCurrentPositionAsync({});
-        setLocation(loc);
-        // Fetch soil data in background once we have coordinates
-        fetchSoilData(loc.coords.latitude, loc.coords.longitude).then(profile => {
-          if (profile) setSoilProfile(profile);
-        });
+        // Last known position is instant; a fresh fix can take a long time indoors.
+        const last = await Location.getLastKnownPositionAsync().catch(() => null);
+        if (last && !cancelled) setLocation(last);
+        const fresh = await Promise.race([
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 10_000)),
+        ]);
+        if (fresh && !cancelled) setLocation(fresh);
       }
-      const dbIssues = await getAllIssues();
-      setIssues(dbIssues);
+      if (!cancelled) setLocating(false);
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Merge store issues (logged this session) with db issues
-  const allIssues = React.useMemo(() => {
-    const dbIds = new Set(issues.map(i => i.id));
-    const sessionNew = storeIssues.filter(i => i.id > 0 && !dbIds.has(i.id));
-    return [...sessionNew, ...issues];
-  }, [issues, storeIssues]);
+  // Soil conditions for the field, fetched once we know where we are.
+  const hasLocation = !!location;
+  useEffect(() => {
+    if (!location || soil) return;
+    fetchSoilData(location.coords.latitude, location.coords.longitude)
+      .then((profile) => profile && setSoil(profile))
+      .catch(() => {});
+  }, [hasLocation]);
+  const soilAdvisory = soil ? getSoilAdvisory(soil) : null;
 
-  const validIssues = allIssues.filter(i => i.lat !== 0 && i.lng !== 0);
+  useFocusEffect(
+    useCallback(() => {
+      getAllIssues().then(setIssues).catch(() => {});
+    }, []),
+  );
+  useEffect(() => {
+    getAllIssues().then(setIssues).catch(() => {});
+  }, [storeIssues]);
 
-  const region = location
-    ? {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.003,
-        longitudeDelta: 0.003,
-      }
-    : undefined;
+  // Let custom marker views animate in, then stop re-snapshotting them (Android perf).
+  useEffect(() => {
+    setTracking(true);
+    const t = setTimeout(() => setTracking(false), 900);
+    return () => clearTimeout(t);
+  }, [issues.length, layer, selected?.issue.id]);
 
-  const soilAdvisory = soilProfile ? getSoilAdvisory(soilProfile) : null;
+  const mapped = useMemo(() => issues.filter((i) => i.lat !== 0 && i.lng !== 0), [issues]);
+  const urgent = mapped.filter((i) => i.severity === 'high').length;
+
+  const blocks = useMemo(() => {
+    const groups: Record<string, IssueRecord[]> = {};
+    mapped.forEach((i) => i.block && (groups[i.block] ??= []).push(i));
+    return Object.entries(groups).map(([block, list]) => ({
+      block,
+      lat: list.reduce((s, i) => s + i.lat, 0) / list.length,
+      lng: list.reduce((s, i) => s + i.lng, 0) / list.length,
+      worst: list.reduce((w, i) => ((SEVERITY_RANK[i.severity] ?? 0) > (SEVERITY_RANK[w] ?? 0) ? i.severity : w), 'none'),
+    }));
+  }, [mapped]);
+
+  const region: Region | null = location
+    ? { latitude: location.coords.latitude, longitude: location.coords.longitude, latitudeDelta: 0.003, longitudeDelta: 0.003 }
+    : mapped.length
+      ? { latitude: mapped[0].lat, longitude: mapped[0].lng, latitudeDelta: 0.004, longitudeDelta: 0.004 }
+      : null;
+
+  // Overlays can't be animated natively, so their opacity is tweened through props.
+  const pinsAlpha = useTween(layer === 'pins' ? 1 : 0, 260);
+  const heatAlpha = useTween(layer === 'health' ? 1 : 0, 320);
+
+  // Legend height follows the active layer.
+  const legendH = useSharedValue(54);
+  useEffect(() => {
+    legendH.value = withSpring(layer === 'pins' ? 54 : 62, spring.snappy);
+  }, [layer]);
+  const legendStyle = useAnimatedStyle(() => ({ height: legendH.value, borderRadius: legendH.value / 2 }));
+
+  async function selectIssue(issue: IssueRecord) {
+    const point = await mapRef.current?.pointForCoordinate({ latitude: issue.lat, longitude: issue.lng });
+    if (point) setSelected({ issue, x: point.x, y: point.y });
+  }
+
+  function recenter() {
+    if (!location) return;
+    mapRef.current?.animateToRegion(
+      { latitude: location.coords.latitude, longitude: location.coords.longitude, latitudeDelta: 0.003, longitudeDelta: 0.003 },
+      450,
+    );
+  }
+
+  const popLeft = selected ? Math.max(16, Math.min(width - POPOVER_WIDTH - 16, selected.x - POPOVER_WIDTH / 2)) : 0;
+  const subtitle = mapped.length
+    ? `${mapped.length} pin${mapped.length === 1 ? '' : 's'}${urgent ? ` · ${urgent} urgent` : ''}`
+    : 'No issues logged yet';
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Field Map</Text>
-        <Text style={styles.subtitle}>{validIssues.length} issue{validIssues.length !== 1 ? 's' : ''} logged</Text>
-      </View>
-
-      {/* Soil conditions card */}
-      {soilProfile && soilAdvisory && (
-        <Pressable style={styles.soilCard} onPress={() => setSoilExpanded(e => !e)}>
-          <View style={styles.soilCardHeader}>
-            <View style={styles.soilTitleRow}>
-              <Ionicons name="layers-outline" size={15} color="#2D6A4F" />
-              <Text style={styles.soilTitle}>Field Soil Conditions</Text>
-              <View style={[styles.phBadge, { backgroundColor: PH_STATUS_COLOR[soilAdvisory.phStatus] + '20' }]}>
-                <Text style={[styles.phBadgeText, { color: PH_STATUS_COLOR[soilAdvisory.phStatus] }]}>
-                  pH {soilProfile.ph.toFixed(1)}
-                </Text>
-              </View>
-            </View>
-            <Ionicons name={soilExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#9CA3AF" />
-          </View>
-          {soilExpanded && (
-            <View style={styles.soilBody}>
-              <Text style={styles.soilAdvice}>{soilAdvisory.phAdvice}</Text>
-              {soilAdvisory.phStatus !== 'optimal' && (
-                <Text style={styles.soilAdviceSub}>{soilAdvisory.generalAdvice}</Text>
-              )}
-              <Text style={styles.soilSource}>Source: SoilGrids (ISRIC) · 0–5 cm depth</Text>
-            </View>
-          )}
-        </Pressable>
-      )}
-
-      {region ? (
+    <ScreenTransition
+      background={c.groundMap}
+      // CONTENT LAYER: the map stays out of the animated layer (blank on Android otherwise).
+      backdrop={region ? (
         <MapView
-          style={styles.map}
-          provider={PROVIDER_GOOGLE}
+          ref={mapRef}
+          style={StyleSheet.absoluteFill}
+          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+          customMapStyle={OPEN_TILES ? undefined : scheme === 'dark' ? DARK_STYLE : MUTED_STYLE}
+          mapType={OPEN_TILES && Platform.OS === 'android' ? 'none' : Platform.OS === 'ios' ? 'mutedStandard' : 'standard'}
+          userInterfaceStyle={scheme}
           initialRegion={region}
           showsUserLocation
-          showsMyLocationButton
+          showsMyLocationButton={false}
+          showsCompass={false}
+          toolbarEnabled={false}
+          onPanDrag={() => selected && setSelected(null)}
+          onPress={() => setSelected(null)}
         >
-          {validIssues.map((issue) => (
-            <React.Fragment key={issue.id}>
+          {OPEN_TILES && <UrlTile urlTemplate={OSM_TILE_URL} maximumZ={19} zIndex={-1} shouldReplaceMapContent />}
+
+          {/* Health heat map: stacked soft discs approximate a gradient per scan. */}
+          {heatAlpha > 0.01 &&
+            mapped.map((issue) =>
+              [1, 0.62, 0.3].map((k, ring) => (
+                <Circle
+                  key={`h${issue.id}-${ring}`}
+                  center={{ latitude: issue.lat, longitude: issue.lng }}
+                  radius={(HEAT_RADIUS[issue.severity] ?? 30) * k}
+                  fillColor={withAlpha(heat[issue.severity] ?? heat.unknown, [0.16, 0.2, 0.26][ring] * heatAlpha)}
+                  strokeWidth={0}
+                />
+              )),
+            )}
+
+          {/* Pin zones */}
+          {pinsAlpha > 0.01 &&
+            mapped.map((issue) => (
               <Circle
+                key={`z${issue.id}`}
                 center={{ latitude: issue.lat, longitude: issue.lng }}
-                radius={SEVERITY_RADIUS[issue.severity] ?? 15}
-                fillColor={SEVERITY_COLOR[issue.severity] + '30'}
-                strokeColor={SEVERITY_COLOR[issue.severity] + '80'}
-                strokeWidth={1}
+                radius={ZONE_RADIUS[issue.severity] ?? 16}
+                fillColor={withAlpha(severityPin[issue.severity] ?? severityPin.unknown, 0.14 * pinsAlpha)}
+                strokeColor={withAlpha(severityPin[issue.severity] ?? severityPin.unknown, 0.5 * pinsAlpha)}
+                strokeWidth={1.5}
               />
-              <Marker
-                coordinate={{ latitude: issue.lat, longitude: issue.lng }}
-                onPress={() => setSelected(issue)}
-                pinColor={SEVERITY_COLOR[issue.severity]}
-              />
-            </React.Fragment>
+            ))}
+
+          {mapped.map((issue, i) => (
+            <Marker
+              key={`p${issue.id}`}
+              coordinate={{ latitude: issue.lat, longitude: issue.lng }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={tracking}
+              onPress={(e) => {
+                e.stopPropagation();
+                selectIssue(issue);
+              }}
+              accessibilityLabel={`${issue.diseaseName}, ${issue.severity}`}
+            >
+              <Pin severity={issue.severity} selected={selected?.issue.id === issue.id} index={i} />
+            </Marker>
           ))}
+
+          {layer === 'health' &&
+            blocks.map((b) => (
+              <Marker key={`b${b.block}`} coordinate={{ latitude: b.lat, longitude: b.lng }} anchor={{ x: 0.5, y: 1.6 }} tracksViewChanges={tracking}>
+                <BlockLabel block={b.block} worst={b.worst} />
+              </Marker>
+            ))}
         </MapView>
       ) : (
-        <View style={styles.noLocation}>
-          <Ionicons name="location-outline" size={48} color="#D1D5DB" />
-          <Text style={styles.noLocationText}>Waiting for location…</Text>
+        <View style={styles.waiting}>
+          {locating ? <ActivityIndicator color={c.labelSecondary} /> : <MapPin size={40} color={c.checkBorder} hole={c.groundMap} />}
+          <Text style={styles.waitingText}>{locating ? 'Finding your location…' : 'Turn on location to see your field'}</Text>
         </View>
       )}
+    >
 
-      {/* Legend */}
-      <View style={styles.legend}>
-        {[
-          { label: 'Urgent', color: '#E53E3E' },
-          { label: 'Watch', color: '#DD6B20' },
-          { label: 'Monitor', color: '#D69E2E' },
-          { label: 'Healthy', color: '#38A169' },
-        ].map(({ label, color }) => (
-          <View key={label} style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: color }]} />
-            <Text style={styles.legendLabel}>{label}</Text>
-          </View>
-        ))}
+      {/* Top scroll-edge effect under the title */}
+      <View style={[styles.topFade, { height: top + 150 }]} pointerEvents="none">
+        <Svg width="100%" height="100%">
+          <Defs>
+            <LinearGradient id="mapFade" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={c.groundMap} stopOpacity={0.97} />
+              <Stop offset="0.6" stopColor={c.groundMap} stopOpacity={0.88} />
+              <Stop offset="1" stopColor={c.groundMap} stopOpacity={0} />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#mapFade)" />
+        </Svg>
       </View>
 
-      {/* Selected issue popup */}
-      {selected && (
-        <View style={styles.popup}>
-          <TouchableOpacity onPress={() => setSelected(null)} style={styles.popupClose}>
-            <Ionicons name="close" size={18} color="#6B7280" />
-          </TouchableOpacity>
-          <Text style={styles.popupName}>{selected.diseaseName}</Text>
-          <Text style={styles.popupDate}>
-            {new Date(selected.timestamp).toLocaleDateString()} · {Math.round(selected.confidence * 100)}% confidence
-          </Text>
+      {/* CONTROL LAYER */}
+      <View style={[styles.header, { top: top - 2 }]} pointerEvents="box-none">
+        <View style={styles.titleRow} pointerEvents="box-none">
+          <View>
+            <Text style={styles.title} accessibilityRole="header">Field Map</Text>
+            <Text style={styles.subtitle}>{subtitle}</Text>
+          </View>
+          <PressableScale onPress={recenter} disabled={!location} accessibilityRole="button" accessibilityLabel="Center on my location">
+            <Glass radius={24} style={styles.locate}>
+              <Locate />
+            </Glass>
+          </PressableScale>
         </View>
+
+        <GlassSegmented
+          items={[
+            { key: 'pins', label: 'Pins', icon: (col) => <MapPin size={16} color={col} hole={c.card} /> },
+            { key: 'health', label: 'Health', icon: (col) => <Heat color={col} /> },
+          ]}
+          selectedIndex={layer === 'pins' ? 0 : 1}
+          onSelect={(i) => {
+            setSelected(null);
+            setLayer(i === 0 ? 'pins' : 'health');
+          }}
+          direction="row"
+          layout="inline"
+         
+          palette={{
+            active: c.label,
+            idle: c.labelSecondary,
+            lens: scheme === 'dark' ? 'rgba(255,255,255,0.2)' : '#FFFFFF',
+            lensEdge: scheme === 'dark' ? 'rgba(255,255,255,0.35)' : '#FFFFFF',
+          }}
+          radius={22}
+          padding={3}
+          itemStyle={styles.layerItem}
+          style={styles.layerSwitch}
+          accessibilityLabel="Map layer"
+        />
+
+        {soil && soilAdvisory && <SoilCard profile={soil} advisory={soilAdvisory} />}
+      </View>
+
+      {region && mapped.length === 0 && (
+        <Animated.View entering={FadeIn.duration(300).delay(200)} exiting={FadeOut.duration(150)} style={[styles.hint, { bottom: accessoryBottom + 70 }]} pointerEvents="none">
+          <Glass radius={22} style={styles.hintGlass}>
+            <MapPin size={18} color={colors.primary} hole={c.card} />
+            <Text style={styles.hintText}>Tap the pin on a scan result to log it here.</Text>
+          </Glass>
+        </Animated.View>
       )}
-    </View>
+
+      {selected && layer === 'pins' && (
+        <Popover
+          issue={selected.issue}
+          left={popLeft}
+          bottom={height - selected.y + 32}
+          arrowX={Math.max(18, Math.min(POPOVER_WIDTH - 36, selected.x - popLeft - 9))}
+        />
+      )}
+
+      {OPEN_TILES && region && (
+        <Text style={[styles.attribution, { bottom: accessoryBottom + 62 }]} pointerEvents="none">
+          © OpenStreetMap contributors
+        </Text>
+      )}
+
+      {/* Tab bar accessory: legend for the active layer */}
+      <Glass radius={27} style={[styles.legend, { bottom: accessoryBottom }, legendStyle]}>
+        {layer === 'pins' ? <PinsLegend key="pins" issues={mapped} /> : <HealthLegend key="health" />}
+      </Glass>
+    </ScreenTransition>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAF9' },
-  header: { paddingTop: 60, paddingBottom: 12, paddingHorizontal: 20, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  title: { fontSize: 22, fontWeight: '700', color: '#111827' },
-  subtitle: { fontSize: 14, color: '#6B7280', marginTop: 2 },
-  soilCard: {
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  soilCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  soilTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  soilTitle: { fontSize: 13, fontWeight: '600', color: '#374151' },
-  phBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  phBadgeText: { fontSize: 12, fontWeight: '700' },
-  soilBody: { marginTop: 8, gap: 4 },
-  soilAdvice: { fontSize: 13, color: '#374151', lineHeight: 18 },
-  soilAdviceSub: { fontSize: 12, color: '#6B7280', lineHeight: 18 },
-  soilSource: { fontSize: 10, color: '#9CA3AF', marginTop: 4 },
-  map: { flex: 1 },
-  noLocation: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  noLocationText: { fontSize: 16, color: '#9CA3AF' },
-  legend: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: '#fff', paddingVertical: 10, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendLabel: { fontSize: 12, color: '#374151' },
-  popup: { position: 'absolute', bottom: 80, left: 20, right: 20, backgroundColor: '#fff', borderRadius: 16, padding: 16, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 },
-  popupClose: { position: 'absolute', top: 12, right: 12 },
-  popupName: { fontSize: 17, fontWeight: '600', color: '#111827', marginBottom: 4, paddingRight: 24 },
-  popupDate: { fontSize: 13, color: '#6B7280' },
-});
+const useStyles = makeStyles((c) => ({
+  waiting: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  waitingText: { fontSize: 16, color: c.labelSecondary },
+  topFade: { position: 'absolute', left: 0, right: 0, top: 0 },
+  header: { position: 'absolute', left: SIDE, right: SIDE, gap: 12 },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.7, lineHeight: 40, color: c.label },
+  subtitle: { fontSize: 16, fontWeight: '500', color: c.labelSecondary },
+  locate: { width: 48, height: 48, marginTop: 4, alignItems: 'center', justifyContent: 'center' },
+  layerSwitch: { alignSelf: 'flex-start', height: 44 },
+  layerItem: { height: 38, paddingHorizontal: 16 },
+  legend: { position: 'absolute', left: SIDE, right: SIDE },
+  attribution: { position: 'absolute', right: SIDE + 6, fontSize: 10, color: c.labelTertiary },
+  hint: { position: 'absolute', left: SIDE, right: SIDE, alignItems: 'center' },
+  hintGlass: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 16 },
+  hintText: { fontSize: 15, fontWeight: '500', color: c.labelStrong, flexShrink: 1 },
+}));

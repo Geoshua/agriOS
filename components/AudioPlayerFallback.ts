@@ -7,7 +7,12 @@
 import * as Speech from 'expo-speech';
 import diseasesData from '../assets/diseases.json';
 
-export async function playAdvisory(diseaseId: string): Promise<void> {
+export interface PlaybackHandlers {
+  /** Called once speech finishes, is stopped, or fails. */
+  onDone?: () => void;
+}
+
+export async function playAdvisory(diseaseId: string, handlers: PlaybackHandlers = {}): Promise<void> {
   const disease = (diseasesData.diseases as any)[diseaseId];
   if (!disease) return;
 
@@ -25,6 +30,9 @@ export async function playAdvisory(diseaseId: string): Promise<void> {
     language: 'en-US',
     rate: 0.9,
     pitch: 1.0,
+    onDone: handlers.onDone,
+    onStopped: handlers.onDone,
+    onError: handlers.onDone,
   });
 }
 

@@ -1,19 +1,40 @@
-import React, { useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useShambaStore } from '../../lib/store';
+import { useIsFocused } from 'expo-router';
+import Animated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import { useShambaStore, ScanMode } from '../../lib/store';
 import { runInference, getDisease } from '../../lib/inference';
-import AdvisorySheet from '../../components/AdvisorySheet';
+import { useLogIssue } from '../../lib/useLogIssue';
+import { useManualCapture } from '../../lib/useManualCapture';
+import { colors } from '../../lib/theme';
+import ScreenTransition from '../../components/glass/ScreenTransition';
+import PressableScale from '../../components/glass/PressableScale';
+import { Leaf } from '../../components/glass/Icons';
+import ScanTopBar from '../../components/scan/ScanTopBar';
+import ARSpots from '../../components/scan/ARSpots';
+import CameraGuides from '../../components/scan/CameraGuides';
+import CaptureButton from '../../components/scan/CaptureButton';
+import ModeRail from '../../components/scan/ModeRail';
+import DetectionAccessory from '../../components/scan/DetectionAccessory';
+import AdvisorySheet, { Detent } from '../../components/advisory/AdvisorySheet';
 
 const INFERENCE_INTERVAL_MS = 1200;
 
 export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isRunningRef = useRef(false);
+  const focused = useIsFocused();
 
-  const { currentDetection, setCurrentDetection, advisoryOpen, setAdvisoryOpen, isScanning } = useShambaStore();
+  const { currentDetection, setCurrentDetection, isScanning, scanMode, setScanMode, torch, activeBlock } = useShambaStore();
+
+  // The live mode to return to when the details sheet closes.
+  const liveMode = useRef<Exclude<ScanMode, 'details'>>('ar');
+  const [detent, setDetent] = useState<Detent>('closed');
+  const sheetPos = useSharedValue(0);
+
+  const scanning = !!permission?.granted && isScanning && scanMode !== 'details' && focused;
 
   const runScan = useCallback(async () => {
     if (isRunningRef.current || !cameraRef.current) return;
@@ -35,108 +56,130 @@ export default function ScanScreen() {
   }, [setCurrentDetection]);
 
   useEffect(() => {
-    if (!permission?.granted || !isScanning || advisoryOpen) return;
-    intervalRef.current = setInterval(runScan, INFERENCE_INTERVAL_MS);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [permission?.granted, isScanning, advisoryOpen, runScan]);
+    if (!scanning) return;
+    const interval = setInterval(runScan, INFERENCE_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [scanning, runScan]);
+
+  const disease = currentDetection ? getDisease(currentDetection.result.diseaseId) : null;
+  const confidence = currentDetection?.result.confidence ?? 0;
+  const spots = currentDetection?.result.spots ?? [];
+  const { state: captureState, last: lastCapture, capture } = useManualCapture(cameraRef, isRunningRef);
+  const { state: logState, log } = useLogIssue(disease, confidence, `${disease?.id}-${activeBlock}`);
+
+  function openDetails() {
+    if (!disease) return;
+    if (scanMode !== 'details') liveMode.current = scanMode;
+    setScanMode('details');
+    setDetent('medium');
+  }
+
+  function closeDetails() {
+    setDetent('closed');
+    setScanMode(liveMode.current);
+  }
+
+  function selectMode(mode: ScanMode) {
+    if (mode === 'details') return openDetails();
+    if (scanMode === 'details') setDetent('closed');
+    setScanMode(mode);
+  }
+
+  // The camera recedes (iOS page-sheet style) as the sheet expands to full.
+  const cameraStyle = useAnimatedStyle(() => {
+    const e = interpolate(sheetPos.value, [1, 2], [0, 1], Extrapolation.CLAMP);
+    return { borderRadius: 38 * e, transform: [{ scale: 1 - 0.07 * e }] };
+  });
+  const dimStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(sheetPos.value, [1, 2], [0, 0.45], Extrapolation.CLAMP),
+  }));
 
   if (!permission) return <View style={styles.container} />;
 
   if (!permission.granted) {
     return (
-      <View style={styles.permissionContainer}>
-        <Text style={styles.permissionText}>Camera access needed to scan crops</Text>
-        <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
-          <Text style={styles.permissionButtonText}>Allow Camera</Text>
-        </TouchableOpacity>
-      </View>
+      <ScreenTransition background={colors.black} statusBar="light">
+        <View style={styles.permission}>
+          <Leaf size={56} color="rgba(255,255,255,0.6)" />
+          <Text style={styles.permissionTitle}>Scan your coffee leaves</Text>
+          <Text style={styles.permissionBody}>agriOS needs the camera to spot rust, miners and other problems on your trees.</Text>
+          <PressableScale onPress={requestPermission} style={styles.permissionButton} accessibilityRole="button">
+            <Text style={styles.permissionButtonText}>Allow camera</Text>
+          </PressableScale>
+        </View>
+      </ScreenTransition>
     );
   }
 
-  const disease = currentDetection ? getDisease(currentDetection.result.diseaseId) : null;
-  const confidence = currentDetection?.result.confidence ?? 0;
-
   return (
-    <View style={styles.container}>
-      <CameraView ref={cameraRef} style={styles.camera} facing="back">
-        {/* Detection overlay */}
-        {disease && (
-          <TouchableOpacity
-            style={[styles.detectionBadge, { backgroundColor: disease.color + 'EE' }]}
-            onPress={() => setAdvisoryOpen(true)}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.detectionName}>{disease.name}</Text>
-            <Text style={styles.detectionConfidence}>
-              {Math.round(confidence * 100)}% — tap for advice
-            </Text>
-          </TouchableOpacity>
-        )}
+    <ScreenTransition background={colors.black} statusBar="light">
+      {/* CONTENT LAYER: camera + AR annotations */}
+      <Animated.View style={[StyleSheet.absoluteFill, styles.cameraWrap, cameraStyle]}>
+        <CameraView
+          ref={cameraRef}
+          style={StyleSheet.absoluteFill}
+          facing="back"
+          enableTorch={torch && focused}
+          animateShutter={false}
+          mute
+        />
+        <ARSpots spots={spots} visible={scanMode === 'ar'} />
+      </Animated.View>
+      <Animated.View style={[StyleSheet.absoluteFill, styles.dim, dimStyle]} pointerEvents="none" />
 
-        {/* Scanning indicator */}
-        <View style={styles.scanningIndicator}>
-          <View style={styles.scanningDot} />
-          <Text style={styles.scanningText}>
-            {currentDetection?.result.isMock ? 'MOCK MODE' : 'Scanning...'}
-          </Text>
-        </View>
+      {scanMode === 'camera' && <CameraGuides scanning={scanning} />}
+      {scanMode === 'camera' && <CaptureButton state={captureState} last={lastCapture} onPress={capture} />}
 
-        {/* Corner frame guides */}
-        <View style={styles.frameTopLeft} />
-        <View style={styles.frameTopRight} />
-        <View style={styles.frameBottomLeft} />
-        <View style={styles.frameBottomRight} />
-      </CameraView>
+      {/* CONTROL LAYER: Liquid Glass */}
+      <ModeRail mode={scanMode} detailsEnabled={!!disease} onSelect={selectMode} />
+      <DetectionAccessory
+        mode={scanMode}
+        disease={disease}
+        confidence={confidence}
+        logState={logState}
+        onOpen={openDetails}
+        onLog={log}
+      />
+
+      {/* Tapping the visible camera area dismisses the sheet. */}
+      {detent !== 'closed' && (
+        <Pressable style={StyleSheet.absoluteFill} onPress={closeDetails} accessibilityLabel="Back to scanner" />
+      )}
+
+      <ScanTopBar
+        mode={scanMode}
+        scanning={scanning}
+        onBack={() => (scanMode === 'details' ? closeDetails() : setScanMode('ar'))}
+      />
 
       <AdvisorySheet
         disease={disease}
         confidence={confidence}
-        open={advisoryOpen}
-        onClose={() => setAdvisoryOpen(false)}
+        logState={logState}
+        onLog={log}
+        detent={detent}
+        onDetentChange={(d) => (d === 'closed' ? closeDetails() : setDetent(d))}
+        pos={sheetPos}
       />
-    </View>
+    </ScreenTransition>
   );
 }
 
-const CORNER = 28;
-const BORDER = 3;
-const COLOR = 'rgba(255,255,255,0.8)';
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  camera: { flex: 1 },
-  permissionContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#F9FAF9' },
-  permissionText: { fontSize: 16, color: '#374151', textAlign: 'center', marginBottom: 20 },
-  permissionButton: { backgroundColor: '#2D6A4F', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12 },
-  permissionButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  detectionBadge: {
-    position: 'absolute',
-    bottom: 100,
-    left: 20,
-    right: 20,
-    borderRadius: 16,
-    padding: 16,
+  container: { flex: 1, backgroundColor: colors.black },
+  cameraWrap: { overflow: 'hidden', backgroundColor: colors.black },
+  dim: { backgroundColor: colors.black },
+  permission: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 14 },
+  permissionTitle: { color: colors.onDark, fontSize: 22, fontWeight: '700', textAlign: 'center' },
+  permissionBody: { color: colors.onDarkSecondary, fontSize: 16, lineHeight: 23, textAlign: 'center' },
+  permissionButton: {
+    marginTop: 8,
+    height: 54,
+    paddingHorizontal: 28,
+    borderRadius: 27,
+    backgroundColor: colors.primary,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  detectionName: { color: '#fff', fontSize: 20, fontWeight: '700' },
-  detectionConfidence: { color: 'rgba(255,255,255,0.85)', fontSize: 14, marginTop: 4 },
-  scanningIndicator: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  scanningDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4ADE80', marginRight: 6 },
-  scanningText: { color: '#fff', fontSize: 12 },
-  frameTopLeft: { position: 'absolute', top: 120, left: 40, width: CORNER, height: CORNER, borderTopWidth: BORDER, borderLeftWidth: BORDER, borderColor: COLOR },
-  frameTopRight: { position: 'absolute', top: 120, right: 40, width: CORNER, height: CORNER, borderTopWidth: BORDER, borderRightWidth: BORDER, borderColor: COLOR },
-  frameBottomLeft: { position: 'absolute', bottom: 180, left: 40, width: CORNER, height: CORNER, borderBottomWidth: BORDER, borderLeftWidth: BORDER, borderColor: COLOR },
-  frameBottomRight: { position: 'absolute', bottom: 180, right: 40, width: CORNER, height: CORNER, borderBottomWidth: BORDER, borderRightWidth: BORDER, borderColor: COLOR },
+  permissionButtonText: { color: colors.white, fontSize: 17, fontWeight: '600' },
 });

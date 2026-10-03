@@ -24,7 +24,8 @@ import {
   SUPPORTED_LANGUAGES,
   DEFAULT_LANGUAGE,
 } from '../lib/stt';
-import type { Audio } from 'expo-av';
+import { RecordingPresets, useAudioRecorder } from 'expo-audio';
+import { useTheme } from '../lib/theme';
 
 interface SpeechInputProps {
   onTranscript: (text: string) => void;
@@ -37,26 +38,29 @@ export default function SpeechInput({ onTranscript, placeholder = 'Describe what
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [text, setText] = useState('');
   const [showLangPicker, setShowLangPicker] = useState(false);
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const { c } = useTheme();
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recordingRef = useRef(false);
 
   const handlePressIn = useCallback(async () => {
     const granted = await requestMicPermission();
     if (!granted) return;
     try {
-      recordingRef.current = await startRecording();
+      await startRecording(recorder);
+      recordingRef.current = true;
       setIsRecording(true);
     } catch {
       /* silently fall back to text */
     }
-  }, []);
+  }, [recorder]);
 
   const handlePressOut = useCallback(async () => {
     if (!recordingRef.current) return;
     setIsRecording(false);
     setIsTranscribing(true);
     try {
-      const result = await stopAndTranscribe(recordingRef.current, language);
-      recordingRef.current = null;
+      recordingRef.current = false;
+      const result = await stopAndTranscribe(recorder, language);
       if (result.text) {
         setText(result.text);
         onTranscript(result.text);
@@ -64,7 +68,7 @@ export default function SpeechInput({ onTranscript, placeholder = 'Describe what
     } finally {
       setIsTranscribing(false);
     }
-  }, [language, onTranscript]);
+  }, [recorder, language, onTranscript]);
 
   const handleTextSubmit = useCallback(() => {
     if (text.trim()) onTranscript(text.trim());
@@ -82,11 +86,14 @@ export default function SpeechInput({ onTranscript, placeholder = 'Describe what
       {/* Text input row */}
       <View style={styles.inputRow}>
         <TextInput
-          style={styles.textInput}
+          style={[styles.textInput, { color: c.label, backgroundColor: c.groundGrouped, borderColor: c.separator }]}
           value={text}
-          onChangeText={setText}
+          onChangeText={(t) => {
+            setText(t);
+            onTranscript(t);
+          }}
           placeholder={placeholder}
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={c.labelTertiary}
           multiline
           onSubmitEditing={handleTextSubmit}
         />

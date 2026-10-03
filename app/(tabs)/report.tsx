@@ -1,28 +1,50 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { getTodayIssues, IssueRecord } from '../../lib/db';
 import { useShambaStore } from '../../lib/store';
+import { colors, makeStyles, sentenceCase, severityBadge, severityPin, useTheme } from '../../lib/theme';
+import { useTween } from '../../lib/useTween';
+import { useChromeInsets } from '../../lib/layout';
+import ScreenTransition from '../../components/glass/ScreenTransition';
+import PressableScale from '../../components/glass/PressableScale';
+import { Leaf, Locate, ScanFrame, Sun } from '../../components/glass/Icons';
 
-const SEVERITY_COLOR: Record<string, string> = {
-  high: '#E53E3E',
-  medium: '#DD6B20',
-  low: '#D69E2E',
-  none: '#38A169',
-  unknown: '#718096',
-};
+const layoutTransition = LinearTransition.springify().damping(24).stiffness(220);
+const enter = (i: number) => FadeInDown.duration(360).delay(60 + i * 60);
 
 export default function ReportScreen() {
+  const { top, tabClearance } = useChromeInsets();
+  const { c, scheme } = useTheme();
+  const styles = useStyles();
+  const storeIssues = useShambaStore((s) => s.issues);
   const [issues, setIssues] = useState<IssueRecord[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const storeIssues = useShambaStore(s => s.issues);
+  const [updatedAt, setUpdatedAt] = useState(new Date());
+  // Bumped on every focus so sections replay their entrance.
+  const [visit, setVisit] = useState(0);
 
   const load = useCallback(async () => {
-    const dbIssues = await getTodayIssues();
-    setIssues(dbIssues);
+    try {
+      setIssues(await getTodayIssues());
+    } catch {}
+    setUpdatedAt(new Date());
+    setLoaded(true);
   }, []);
 
-  useEffect(() => { load(); }, [storeIssues, load]);
+  useEffect(() => {
+    load();
+  }, [storeIssues, load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+      setVisit((v) => v + 1);
+    }, [load]),
+  );
 
   async function onRefresh() {
     setRefreshing(true);
@@ -30,119 +52,198 @@ export default function ReportScreen() {
     setRefreshing(false);
   }
 
-  // Count by disease
   const counts = issues.reduce<Record<string, { count: number; name: string; severity: string }>>((acc, issue) => {
-    if (!acc[issue.diseaseId]) {
-      acc[issue.diseaseId] = { count: 0, name: issue.diseaseName, severity: issue.severity };
-    }
+    acc[issue.diseaseId] ??= { count: 0, name: issue.diseaseName, severity: issue.severity };
     acc[issue.diseaseId].count++;
     return acc;
   }, {});
+  const found = Object.entries(counts)
+    .filter(([id]) => id !== 'healthy')
+    .sort((a, b) => b[1].count - a[1].count);
+  const urgentCount = issues.filter((i) => i.severity === 'high').length;
+  const healthyCount = issues.filter((i) => i.severity === 'none').length;
+  const empty = loaded && issues.length === 0;
 
-  const topIssues = Object.entries(counts).sort((a, b) => b[1].count - a[1].count);
-  const urgentCount = issues.filter(i => i.severity === 'high').length;
-  const healthyCount = issues.filter(i => i.severity === 'none').length;
-
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const updated = updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2D6A4F" />}
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>Today's Report</Text>
-        <Text style={styles.date}>{today}</Text>
-      </View>
+    <ScreenTransition background={c.groundGrouped}>
+      <ScrollView
+        key={visit}
+        contentContainerStyle={[styles.content, { paddingTop: top - 4, paddingBottom: tabClearance + 40 }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.labelTertiary} />}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View entering={FadeIn.duration(300)} style={styles.updated}>
+          <Sun />
+          <Text style={styles.updatedText}>{empty ? `Pull to refresh · updated ${updated}` : `Updated ${updated}`}</Text>
+        </Animated.View>
 
-      {/* Summary cards */}
-      <View style={styles.summaryRow}>
-        <View style={[styles.summaryCard, { borderLeftColor: '#2D6A4F' }]}>
-          <Text style={styles.summaryNumber}>{issues.length}</Text>
-          <Text style={styles.summaryLabel}>Total scans{'\n'}logged</Text>
-        </View>
-        <View style={[styles.summaryCard, { borderLeftColor: '#E53E3E' }]}>
-          <Text style={[styles.summaryNumber, { color: '#E53E3E' }]}>{urgentCount}</Text>
-          <Text style={styles.summaryLabel}>Urgent{'\n'}issues</Text>
-        </View>
-        <View style={[styles.summaryCard, { borderLeftColor: '#38A169' }]}>
-          <Text style={[styles.summaryNumber, { color: '#38A169' }]}>{healthyCount}</Text>
-          <Text style={styles.summaryLabel}>Healthy{'\n'}scans</Text>
-        </View>
-      </View>
+        <Animated.View entering={enter(0)} style={styles.header}>
+          <Text style={styles.date}>{today}</Text>
+          <Text style={styles.title} accessibilityRole="header">Today</Text>
+        </Animated.View>
 
-      {/* Issues by type */}
-      {topIssues.length > 0 ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Issues found today</Text>
-          {topIssues.map(([id, data]) => (
-            <View key={id} style={styles.issueRow}>
-              <View style={[styles.issueDot, { backgroundColor: SEVERITY_COLOR[data.severity] }]} />
-              <Text style={styles.issueName}>{data.name}</Text>
-              <View style={[styles.issueCount, { backgroundColor: SEVERITY_COLOR[data.severity] + '20' }]}>
-                <Text style={[styles.issueCountText, { color: SEVERITY_COLOR[data.severity] }]}>
-                  ×{data.count}
-                </Text>
-              </View>
+        <Animated.View entering={enter(1)} style={styles.tiles}>
+          <StatTile value={issues.length} label="Scans" accent={colors.primary} color={c.label} muted={empty} />
+          <StatTile value={urgentCount} label="Urgent" accent="#D70015" color={c.statUrgent} muted={empty} />
+          <StatTile value={healthyCount} label="Healthy" accent="#248A3D" color={c.statHealthy} muted={empty} />
+        </Animated.View>
+
+        {empty ? (
+          <Animated.View entering={enter(2)} style={styles.empty}>
+            <View style={styles.emptyArt}>
+              <Leaf size={56} color={c.checkBorder} />
             </View>
-          ))}
-        </View>
-      ) : null}
+            <Text style={styles.emptyTitle}>No scans today.</Text>
+            <Text style={styles.emptyBody}>Head out to the field.</Text>
+            <PressableScale onPress={() => router.navigate('/scan')} style={styles.emptyButton} accessibilityRole="button">
+              <ScanFrame size={20} color={colors.white} />
+              <Text style={styles.emptyButtonText}>Start scanning</Text>
+            </PressableScale>
+          </Animated.View>
+        ) : (
+          <>
+            {found.length > 0 && (
+              <Animated.View entering={enter(2)} layout={layoutTransition} style={styles.section}>
+                <Text style={styles.sectionTitle}>Found Today</Text>
+                <View style={styles.group}>
+                  {found.map(([id, data], i) => {
+                    const badge = severityBadge[scheme][data.severity] ?? severityBadge[scheme].unknown;
+                    return (
+                      <Animated.View key={id} layout={layoutTransition} entering={FadeIn.duration(240)}>
+                        {i > 0 && <View style={[styles.separator, { marginLeft: 40 }]} />}
+                        <View style={styles.foundRow}>
+                          <View style={[styles.dot12, { backgroundColor: severityPin[data.severity] ?? severityPin.unknown }, data.severity === 'low' && styles.dotEdge]} />
+                          <Text style={styles.foundName} numberOfLines={1}>
+                            {id === 'unknown' ? 'Unknown — with officer' : sentenceCase(data.name)}
+                          </Text>
+                          <View style={[styles.badge, { backgroundColor: badge.bg }]}>
+                            <Text style={[styles.badgeText, { color: badge.fg }]}>{data.count}</Text>
+                          </View>
+                        </View>
+                      </Animated.View>
+                    );
+                  })}
+                </View>
+              </Animated.View>
+            )}
 
-      {/* Timeline */}
-      {issues.length > 0 ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Timeline</Text>
-          {issues.slice(0, 20).map((issue) => (
-            <View key={issue.id} style={styles.timelineItem}>
-              <View style={[styles.timelineDot, { backgroundColor: SEVERITY_COLOR[issue.severity] }]} />
-              <View style={styles.timelineContent}>
-                <Text style={styles.timelineName}>{issue.diseaseName}</Text>
-                <Text style={styles.timelineTime}>
-                  {new Date(issue.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  {issue.lat !== 0 ? ' · GPS logged' : ''}
-                </Text>
+            <Animated.View entering={enter(3)} layout={layoutTransition} style={styles.section}>
+              <Text style={styles.sectionTitle}>Timeline</Text>
+              <View style={styles.group}>
+                {issues.slice(0, 30).map((issue, i) => (
+                  <Animated.View key={issue.id} layout={layoutTransition} entering={FadeIn.duration(240)}>
+                    {i > 0 && <View style={[styles.separator, { marginLeft: 98 }]} />}
+                    <View style={styles.timelineRow}>
+                      <Text style={styles.time}>
+                        {new Date(issue.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+                      </Text>
+                      <View style={[styles.dot10, { backgroundColor: severityPin[issue.severity] ?? severityPin.unknown }]} />
+                      <View style={styles.timelineText}>
+                        <Text style={styles.timelineName} numberOfLines={1}>{sentenceCase(issue.diseaseName)}</Text>
+                        <Text style={styles.timelineMeta}>{issue.block ? `Block ${issue.block}` : 'No block'}</Text>
+                      </View>
+                      {issue.lat !== 0 ? (
+                        <View style={styles.gps}>
+                          <Locate size={12} color={c.gps} />
+                          <Text style={styles.gpsText}>GPS</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.noFix}>No fix</Text>
+                      )}
+                    </View>
+                  </Animated.View>
+                ))}
               </View>
-              <Text style={styles.timelineConf}>{Math.round(issue.confidence * 100)}%</Text>
-            </View>
-          ))}
-        </View>
-      ) : (
-        <View style={styles.empty}>
-          <Ionicons name="leaf-outline" size={64} color="#D1D5DB" />
-          <Text style={styles.emptyTitle}>No scans today</Text>
-          <Text style={styles.emptyBody}>Head out to the field and scan your crops. Issues you log will appear here.</Text>
-        </View>
-      )}
-    </ScrollView>
+            </Animated.View>
+          </>
+        )}
+      </ScrollView>
+
+      {/* Scroll-edge fade under the floating tab bar */}
+      <View style={styles.bottomFade} pointerEvents="none">
+        <Svg width="100%" height="100%">
+          <Defs>
+            <LinearGradient id="reportFade" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={c.groundGrouped} stopOpacity={0} />
+              <Stop offset="0.55" stopColor={c.groundGrouped} stopOpacity={0.85} />
+              <Stop offset="1" stopColor={c.groundGrouped} stopOpacity={1} />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#reportFade)" />
+        </Svg>
+      </View>
+    </ScreenTransition>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAF9' },
-  content: { paddingBottom: 40 },
-  header: { paddingTop: 60, paddingBottom: 20, paddingHorizontal: 20, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  title: { fontSize: 24, fontWeight: '700', color: '#111827' },
-  date: { fontSize: 14, color: '#6B7280', marginTop: 4 },
-  summaryRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 4 },
-  summaryCard: { flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 14, borderLeftWidth: 4, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
-  summaryNumber: { fontSize: 28, fontWeight: '700', color: '#111827' },
-  summaryLabel: { fontSize: 12, color: '#6B7280', marginTop: 4, lineHeight: 16 },
-  section: { marginTop: 20, paddingHorizontal: 20 },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 },
-  issueRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 8, gap: 12 },
-  issueDot: { width: 10, height: 10, borderRadius: 5 },
-  issueName: { flex: 1, fontSize: 15, color: '#111827', fontWeight: '500' },
-  issueCount: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  issueCountText: { fontSize: 13, fontWeight: '700' },
-  timelineItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', gap: 12 },
-  timelineDot: { width: 8, height: 8, borderRadius: 4 },
-  timelineContent: { flex: 1 },
-  timelineName: { fontSize: 14, color: '#374151', fontWeight: '500' },
-  timelineTime: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
-  timelineConf: { fontSize: 12, color: '#9CA3AF' },
-  empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 40, gap: 12 },
-  emptyTitle: { fontSize: 20, fontWeight: '600', color: '#374151' },
-  emptyBody: { fontSize: 15, color: '#6B7280', textAlign: 'center', lineHeight: 22 },
-});
+function StatTile({ value, label, accent, color, muted }: { value: number; label: string; accent: string; color: string; muted: boolean }) {
+  // Counts roll up from zero on each visit and tick when they change.
+  const styles = useStyles();
+  const { c } = useTheme();
+  const shown = Math.round(useTween(value, 700, 0));
+  return (
+    <View style={styles.tile} accessible accessibilityLabel={`${value} ${label}`}>
+      <View style={[styles.tileAccent, { backgroundColor: accent }]} />
+      <Text style={[styles.tileValue, { color: muted ? c.labelTertiary : color }]}>{shown}</Text>
+      <Text style={styles.tileLabel}>{label}</Text>
+    </View>
+  );
+}
+
+const useStyles = makeStyles((c) => ({
+  content: { paddingHorizontal: 16, gap: 22 },
+  updated: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  updatedText: { fontSize: 13, color: c.labelTertiary },
+  header: { gap: 2, paddingHorizontal: 4 },
+  date: { fontSize: 16, fontWeight: '600', color: c.labelSecondary },
+  title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.7, lineHeight: 40, color: c.label },
+
+  tiles: { flexDirection: 'row', gap: 10 },
+  tile: { flex: 1, gap: 2, paddingVertical: 14, paddingLeft: 18, paddingRight: 14, borderRadius: 26, backgroundColor: c.card, overflow: 'hidden' },
+  tileAccent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 5 },
+  tileValue: { fontSize: 32, fontWeight: '700', letterSpacing: -0.6, fontVariant: ['tabular-nums'] },
+  tileLabel: { fontSize: 14, color: c.labelSecondary },
+
+  section: { gap: 8 },
+  sectionTitle: { fontSize: 20, fontWeight: '700', paddingHorizontal: 4, color: c.label },
+  group: { borderRadius: 26, backgroundColor: c.card, overflow: 'hidden' },
+  separator: { height: 1, backgroundColor: c.separator },
+
+  foundRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
+  dot12: { width: 12, height: 12, borderRadius: 6 },
+  dotEdge: { borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(0,0,0,0.25)' },
+  foundName: { flex: 1, fontSize: 17, color: c.label },
+  badge: { minWidth: 30, height: 28, paddingHorizontal: 10, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { fontSize: 15, fontWeight: '700' },
+
+  timelineRow: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
+  time: { width: 48, fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'], color: c.label },
+  dot10: { width: 10, height: 10, borderRadius: 5 },
+  timelineText: { flex: 1 },
+  timelineName: { fontSize: 17, color: c.label },
+  timelineMeta: { fontSize: 13, color: c.labelTertiary },
+  gps: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  gpsText: { fontSize: 13, fontWeight: '600', color: c.gps },
+  noFix: { fontSize: 13, fontWeight: '600', color: c.labelTertiary },
+
+  empty: { marginTop: 28, alignItems: 'center', gap: 6 },
+  emptyArt: { width: 120, height: 120, borderRadius: 60, backgroundColor: c.emptyArt, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  emptyTitle: { fontSize: 22, fontWeight: '700', color: c.label },
+  emptyBody: { fontSize: 16, lineHeight: 24, color: c.labelSecondary },
+  emptyButton: {
+    marginTop: 14,
+    height: 52,
+    paddingHorizontal: 24,
+    borderRadius: 26,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.primary,
+  },
+  emptyButtonText: { color: colors.white, fontSize: 16, fontWeight: '600' },
+
+  bottomFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 150 },
+}));

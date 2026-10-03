@@ -10,10 +10,10 @@ cd agriOS
 ## 2. Install dependencies
 
 ```bash
-npx expo install expo-camera expo-location expo-av expo-sqlite \
-  react-native-maps zustand react-native-reanimated \
-  react-native-gesture-handler expo-router @expo/vector-icons \
-  expo-speech
+npx expo install expo-camera expo-location expo-audio expo-asset expo-sqlite \
+  expo-file-system react-native-maps zustand react-native-reanimated \
+  react-native-worklets react-native-gesture-handler expo-router @expo/vector-icons \
+  expo-speech expo-blur react-native-svg expo-splash-screen
 ```
 
 ## 3. Copy files
@@ -34,7 +34,7 @@ Replace the generated files with those in this repo:
 ELEVENLABS_API_KEY=your_key npm run generate-audio
 ```
 
-If you skip this, the app uses on-device TTS via `expo-speech` (change the import in `AdvisorySheet.tsx`).
+If you skip this, the app uses on-device TTS via `expo-speech` (see *Audio fallback* below).
 
 ## 5. Run
 
@@ -54,12 +54,13 @@ Then uncomment the real inference code in `lib/inference.ts`.
 
 ## Audio fallback
 
-If ElevenLabs isn't set up, change AdvisorySheet.tsx line 7:
+The advisory sheet uses on-device TTS by default. Once the ElevenLabs MP3s are
+generated, switch the import in `components/advisory/parts.tsx`:
 ```ts
 // from:
-import { playAdvisory, stopAll } from './AudioPlayer';
+import { playAdvisory, stopAll } from '../AudioPlayerFallback';
 // to:
-import { playAdvisory, stopAll } from './AudioPlayerFallback';
+import { playAdvisory, stopAll } from '../AudioPlayer';
 ```
 
 ## Google Maps API key
