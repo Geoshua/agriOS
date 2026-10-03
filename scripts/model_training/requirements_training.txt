@@ -1,0 +1,16 @@
+# agriOS model training dependencies
+# Python 3.10+ required. CUDA 12.x recommended for GPU acceleration.
+#
+# Install:
+#   pip install -r requirements_training.txt
+#
+# GPU check after install:
+#   python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
+#   Should print something like: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')]
+
+tensorflow>=2.15.0,<2.17.0
+numpy>=1.24,<2.0
+pillow>=10.0
+kaggle>=1.6          # for dataset download; optional if downloading manually
+albumentations>=1.3  # optional: extra augmentation beyond Keras built-ins
+tqdm>=4.66           # progress bars

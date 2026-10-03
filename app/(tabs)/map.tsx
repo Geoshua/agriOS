@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
 import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { getAllIssues, IssueRecord } from '../../lib/db';
 import { useShambaStore } from '../../lib/store';
+import { fetchSoilData, getSoilAdvisory, SoilProfile } from '../../lib/soil';
 
 const SEVERITY_RADIUS: Record<string, number> = {
   high: 30,
@@ -22,10 +23,18 @@ const SEVERITY_COLOR: Record<string, string> = {
   unknown: '#718096',
 };
 
+const PH_STATUS_COLOR: Record<string, string> = {
+  low: '#DD6B20',
+  optimal: '#38A169',
+  high: '#3B82F6',
+};
+
 export default function MapScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [issues, setIssues] = useState<IssueRecord[]>([]);
   const [selected, setSelected] = useState<IssueRecord | null>(null);
+  const [soilProfile, setSoilProfile] = useState<SoilProfile | null>(null);
+  const [soilExpanded, setSoilExpanded] = useState(true);
   const storeIssues = useShambaStore(s => s.issues);
 
   useEffect(() => {
@@ -34,6 +43,10 @@ export default function MapScreen() {
       if (status === 'granted') {
         const loc = await Location.getCurrentPositionAsync({});
         setLocation(loc);
+        // Fetch soil data in background once we have coordinates
+        fetchSoilData(loc.coords.latitude, loc.coords.longitude).then(profile => {
+          if (profile) setSoilProfile(profile);
+        });
       }
       const dbIssues = await getAllIssues();
       setIssues(dbIssues);
@@ -58,12 +71,41 @@ export default function MapScreen() {
       }
     : undefined;
 
+  const soilAdvisory = soilProfile ? getSoilAdvisory(soilProfile) : null;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Field Map</Text>
         <Text style={styles.subtitle}>{validIssues.length} issue{validIssues.length !== 1 ? 's' : ''} logged</Text>
       </View>
+
+      {/* Soil conditions card */}
+      {soilProfile && soilAdvisory && (
+        <Pressable style={styles.soilCard} onPress={() => setSoilExpanded(e => !e)}>
+          <View style={styles.soilCardHeader}>
+            <View style={styles.soilTitleRow}>
+              <Ionicons name="layers-outline" size={15} color="#2D6A4F" />
+              <Text style={styles.soilTitle}>Field Soil Conditions</Text>
+              <View style={[styles.phBadge, { backgroundColor: PH_STATUS_COLOR[soilAdvisory.phStatus] + '20' }]}>
+                <Text style={[styles.phBadgeText, { color: PH_STATUS_COLOR[soilAdvisory.phStatus] }]}>
+                  pH {soilProfile.ph.toFixed(1)}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name={soilExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#9CA3AF" />
+          </View>
+          {soilExpanded && (
+            <View style={styles.soilBody}>
+              <Text style={styles.soilAdvice}>{soilAdvisory.phAdvice}</Text>
+              {soilAdvisory.phStatus !== 'optimal' && (
+                <Text style={styles.soilAdviceSub}>{soilAdvisory.generalAdvice}</Text>
+              )}
+              <Text style={styles.soilSource}>Source: SoilGrids (ISRIC) · 0–5 cm depth</Text>
+            </View>
+          )}
+        </Pressable>
+      )}
 
       {region ? (
         <MapView
@@ -133,6 +175,22 @@ const styles = StyleSheet.create({
   header: { paddingTop: 60, paddingBottom: 12, paddingHorizontal: 20, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
   title: { fontSize: 22, fontWeight: '700', color: '#111827' },
   subtitle: { fontSize: 14, color: '#6B7280', marginTop: 2 },
+  soilCard: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  soilCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  soilTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  soilTitle: { fontSize: 13, fontWeight: '600', color: '#374151' },
+  phBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  phBadgeText: { fontSize: 12, fontWeight: '700' },
+  soilBody: { marginTop: 8, gap: 4 },
+  soilAdvice: { fontSize: 13, color: '#374151', lineHeight: 18 },
+  soilAdviceSub: { fontSize: 12, color: '#6B7280', lineHeight: 18 },
+  soilSource: { fontSize: 10, color: '#9CA3AF', marginTop: 4 },
   map: { flex: 1 },
   noLocation: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   noLocationText: { fontSize: 16, color: '#9CA3AF' },

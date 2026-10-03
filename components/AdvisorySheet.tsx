@@ -7,12 +7,13 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { logIssue } from '../lib/db';
 import { useShambaStore } from '../lib/store';
+import SpeechInput from './SpeechInput';
 // Use AudioPlayerFallback (expo-speech, offline) until MP3s are generated.
 // Switch to './AudioPlayer' once ELEVENLABS_API_KEY clips are in assets/audio/.
 import { playAdvisory, stopAll } from './AudioPlayerFallback';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const SHEET_HEIGHT = SCREEN_HEIGHT * 0.65;
+const SHEET_HEIGHT = SCREEN_HEIGHT * 0.72;
 
 interface Props {
   disease: any;
@@ -31,9 +32,10 @@ const SEVERITY_LABEL: Record<string, string> = {
 
 export default function AdvisorySheet({ disease, confidence, open, onClose }: Props) {
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
-  const { addIssue, currentDetection } = useShambaStore();
+  const { addIssue } = useShambaStore();
   const [logged, setLogged] = React.useState(false);
   const [logging, setLogging] = React.useState(false);
+  const [notes, setNotes] = React.useState('');
 
   useEffect(() => {
     Animated.spring(translateY, {
@@ -47,6 +49,7 @@ export default function AdvisorySheet({ disease, confidence, open, onClose }: Pr
     } else if (!open) {
       stopAll();
       setLogged(false);
+      setNotes('');
     }
   }, [open, disease?.id ?? '']);
 
@@ -68,7 +71,7 @@ export default function AdvisorySheet({ disease, confidence, open, onClose }: Pr
         lng: loc?.coords.longitude ?? 0,
         photoUri: null,
         timestamp: Date.now(),
-        notes: null,
+        notes: notes.trim() || null,
       });
 
       addIssue({
@@ -81,7 +84,7 @@ export default function AdvisorySheet({ disease, confidence, open, onClose }: Pr
         lng: loc?.coords.longitude ?? 0,
         photoUri: null,
         timestamp: Date.now(),
-        notes: null,
+        notes: notes.trim() || null,
       });
 
       setLogged(true);
@@ -163,6 +166,22 @@ export default function AdvisorySheet({ disease, confidence, open, onClose }: Pr
             </View>
           )}
 
+          {/* Voice observation input */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Your observations</Text>
+            <Text style={styles.observationHint}>Describe what you see — in any language.</Text>
+            <SpeechInput
+              onTranscript={setNotes}
+              placeholder="Hold mic or type in your language…"
+            />
+            {notes.length > 0 && (
+              <View style={styles.notePreview}>
+                <Ionicons name="document-text-outline" size={14} color="#6B7280" />
+                <Text style={styles.notePreviewText} numberOfLines={2}>{notes}</Text>
+              </View>
+            )}
+          </View>
+
           {/* Replay audio */}
           <TouchableOpacity
             style={styles.audioButton}
@@ -220,6 +239,9 @@ const styles = StyleSheet.create({
   yieldText: { fontSize: 14, color: '#991B1B', flex: 1 },
   expertNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#F3F4F6', borderRadius: 10, padding: 12, marginBottom: 16 },
   expertText: { fontSize: 14, color: '#374151', flex: 1, lineHeight: 20 },
+  observationHint: { fontSize: 13, color: '#9CA3AF', marginBottom: 8 },
+  notePreview: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 8, backgroundColor: '#F9FAFB', borderRadius: 8, padding: 10 },
+  notePreviewText: { fontSize: 13, color: '#374151', flex: 1, lineHeight: 18 },
   audioButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, marginTop: 4, marginBottom: 4 },
   audioButtonText: { fontSize: 14, color: '#2D6A4F', fontWeight: '500' },
   logButton: { backgroundColor: '#2D6A4F', borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16, marginTop: 8 },
