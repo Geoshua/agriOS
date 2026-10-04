@@ -1,12 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useIsFocused } from 'expo-router';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useShambaStore, ScanMode } from '../../lib/store';
 import { runInference, getDisease } from '../../lib/inference';
+import { getQuickLocation } from '../../lib/location';
 import { useLogIssue } from '../../lib/useLogIssue';
 import { useManualCapture } from '../../lib/useManualCapture';
+import { useOffloadQueue } from '../../lib/useOffloadQueue';
 import { colors } from '../../lib/theme';
 import ScreenTransition from '../../components/glass/ScreenTransition';
 import PressableScale from '../../components/glass/PressableScale';
@@ -20,14 +23,31 @@ import DetectionAccessory from '../../components/scan/DetectionAccessory';
 import AdvisorySheet, { Detent } from '../../components/advisory/AdvisorySheet';
 
 const INFERENCE_INTERVAL_MS = 1200;
+const LOCATION_REFRESH_MS = 30_000;
 
 export default function ScanScreen() {
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const isRunningRef = useRef(false);
   const focused = useIsFocused();
 
-  const { currentDetection, setCurrentDetection, isScanning, scanMode, setScanMode, torch, activeBlock } = useShambaStore();
+  const {
+    currentDetection,
+    setCurrentDetection,
+    isScanning,
+    scanMode,
+    setScanMode,
+    torch,
+    activeBlock,
+    setLastFrameUri,
+    lastKnownLocation,
+    setLastKnownLocation,
+  } = useShambaStore();
+
+  // Cached GPS — refreshed every 30s, passed to /classify for data contribution.
+  // Using a ref avoids re-creating runScan on every location update.
+  const lastLocationRef = useRef<{ lat: number; lng: number } | null>(null);
 
   // The live mode to return to when the details sheet closes.
   const liveMode = useRef<Exclude<ScanMode, 'details'>>('ar');
@@ -35,6 +55,24 @@ export default function ScanScreen() {
   const sheetPos = useSharedValue(0);
 
   const scanning = !!permission?.granted && isScanning && scanMode !== 'details' && focused;
+
+  // Retry any queued cloud offloads when the app comes back to foreground.
+  useOffloadQueue();
+
+  // Refresh GPS in background. The first call fires immediately.
+  useEffect(() => {
+    let active = true;
+    async function refresh() {
+      const loc = await getQuickLocation();
+      if (!active || !loc) return;
+      const coords = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+      lastLocationRef.current = coords;
+      setLastKnownLocation(coords);
+    }
+    refresh();
+    const timer = setInterval(refresh, LOCATION_REFRESH_MS);
+    return () => { active = false; clearInterval(timer); };
+  }, [setLastKnownLocation]);
 
   const runScan = useCallback(async () => {
     if (isRunningRef.current || !cameraRef.current) return;
@@ -46,14 +84,16 @@ export default function ScanScreen() {
         base64: false,
       });
       if (!photo) return;
-      const result = await runInference(photo.uri);
+      // Pass cached GPS so the hub can anonymise and queue the scan for /heatmap.
+      const result = await runInference(photo.uri, lastLocationRef.current ?? undefined);
+      setLastFrameUri(photo.uri);
       setCurrentDetection({ result, timestamp: Date.now() });
     } catch (_) {
       // Silently skip failed frames
     } finally {
       isRunningRef.current = false;
     }
-  }, [setCurrentDetection]);
+  }, [setCurrentDetection, setLastFrameUri]);
 
   useEffect(() => {
     if (!scanning) return;
@@ -152,6 +192,14 @@ export default function ScanScreen() {
         onBack={() => (scanMode === 'details' ? closeDetails() : setScanMode('ar'))}
       />
 
+      {/* Contribution indicator — shown only when GPS is active */}
+      {lastKnownLocation && detent === 'closed' && (
+        <View style={[styles.networkPill, { top: insets.top + 56 }]} pointerEvents="none">
+          <View style={styles.networkDot} />
+          <Text style={styles.networkText}>Sharing with network</Text>
+        </View>
+      )}
+
       <AdvisorySheet
         disease={disease}
         confidence={confidence}
@@ -183,4 +231,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   permissionButtonText: { color: colors.white, fontSize: 17, fontWeight: '600' },
+  networkPill: {
+    position: 'absolute',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(0,0,0,0.48)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  networkDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#4ADE80' },
+  networkText: { fontSize: 12, fontWeight: '500', color: 'rgba(255,255,255,0.9)' },
 });

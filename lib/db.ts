@@ -24,6 +24,17 @@ export interface PlantRecord {
   createdAt: number;
 }
 
+export interface PendingOffload {
+  id: number;
+  framePath: string;
+  diseaseId: string;
+  confidence: number;
+  lat: number | null;
+  lng: number | null;
+  createdAt: number;
+  status: 'pending' | 'processing';
+}
+
 let db: SQLite.SQLiteDatabase | null = null;
 let dbReady: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -52,6 +63,16 @@ async function getDb(): Promise<SQLite.SQLiteDatabase> {
           lat REAL NOT NULL,
           lng REAL NOT NULL,
           created_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS pending_offloads (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          frame_path TEXT NOT NULL,
+          disease_id TEXT NOT NULL,
+          confidence REAL NOT NULL,
+          lat REAL,
+          lng REAL,
+          created_at INTEGER NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending'
         );
       `);
       // Migrate databases created before the block / plant_id columns existed.
@@ -248,4 +269,37 @@ export function nextPlantName(existingCount: number): string {
   return existingCount < 26
     ? `Plant ${letters[existingCount]}`
     : `Plant ${existingCount + 1}`;
+}
+
+// ── Pending offloads (cloud retry queue) ─────────────────────────────────────
+
+export async function queueOffload(entry: Omit<PendingOffload, 'id'>): Promise<number> {
+  const db = await getDb();
+  const result = await db.runAsync(
+    `INSERT INTO pending_offloads (frame_path, disease_id, confidence, lat, lng, created_at, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [entry.framePath, entry.diseaseId, entry.confidence, entry.lat, entry.lng, entry.createdAt, entry.status]
+  );
+  return result.lastInsertRowId;
+}
+
+export async function getPendingOffloads(): Promise<PendingOffload[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<any>(
+    `SELECT * FROM pending_offloads WHERE status = 'pending' ORDER BY created_at ASC LIMIT 20`
+  );
+  return rows.map(r => ({
+    id: r.id,
+    framePath: r.frame_path,
+    diseaseId: r.disease_id,
+    confidence: r.confidence,
+    lat: r.lat ?? null,
+    lng: r.lng ?? null,
+    createdAt: r.created_at,
+    status: r.status,
+  }));
+}
+
+export async function resolveOffload(id: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(`DELETE FROM pending_offloads WHERE id = ?`, [id]);
 }

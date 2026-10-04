@@ -11,3 +11,4 @@
  *   Windows:    ipconfig
  */
 export const LOCAL_SERVER_URL = ''; // e.g. 'http://192.168.1.42:7384'
+export const CLOUD_SERVER_URL = ''; // e.g. 'https://agrios.example.com'

@@ -16,7 +16,7 @@
  *   - Mock: default, no config needed
  */
 
-import { File } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system';
 import diseasesData from '../assets/diseases.json';
 import { LOCAL_SERVER_URL } from './config';
 
@@ -26,17 +26,6 @@ export interface InferenceResult {
   isMock: boolean;
   reasoning?: string;
   source?: 'local-server' | 'hf' | 'local-tflite' | 'mock';
-  /**
-   * Lesion locations for the AR overlay, normalised to the frame (0–1).
-   * Only set by models that localise spots; classifiers leave it undefined.
-   */
-  spots?: Spot[];
-}
-
-export interface Spot {
-  x: number;      // centre, 0–1 across the frame
-  y: number;      // centre, 0–1 down the frame
-  radius: number; // 0–1 relative to frame width
 }
 
 const DISEASE_CLASSES = diseasesData.classes;
@@ -63,12 +52,17 @@ Respond ONLY with this JSON, nothing else:
 
 // ── TIER 0: Local LAN server ──────────────────────────────────────────────────
 
-async function runLocalServerInference(frameUri: string): Promise<InferenceResult | null> {
+async function runLocalServerInference(
+  frameUri: string,
+  location?: { lat: number; lng: number },
+): Promise<InferenceResult | null> {
   if (!LOCAL_SERVER_URL) return null;
 
   let base64: string;
   try {
-    base64 = await new File(frameUri).base64();
+    base64 = await FileSystem.readAsStringAsync(frameUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
   } catch {
     return null;
   }
@@ -78,10 +72,13 @@ async function runLocalServerInference(frameUri: string): Promise<InferenceResul
   const timeout = setTimeout(() => controller.abort(), 3_000);
 
   try {
+    const body: Record<string, unknown> = { image: base64, mimeType: 'image/jpeg' };
+    if (location) { body.lat = location.lat; body.lng = location.lng; }
+
     const response = await fetch(`${LOCAL_SERVER_URL}/classify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: base64, mimeType: 'image/jpeg' }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -113,7 +110,9 @@ async function runHFInference(frameUri: string): Promise<InferenceResult | null>
 
   let base64: string;
   try {
-    base64 = await new File(frameUri).base64();
+    base64 = await FileSystem.readAsStringAsync(frameUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
   } catch {
     return null;
   }
@@ -195,39 +194,27 @@ async function runMockInference(): Promise<InferenceResult> {
   const baseConfidence = MOCK_DISTRIBUTION[diseaseId];
   const confidence = Math.min(0.99, baseConfidence + (Math.random() * 0.3 - 0.1));
   await new Promise(res => setTimeout(res, 80));
-  const finalId = confidence < CONFIDENCE_THRESHOLD ? 'unknown' : diseaseId;
   return {
-    diseaseId: finalId,
+    diseaseId: confidence < CONFIDENCE_THRESHOLD ? 'unknown' : diseaseId,
     confidence,
     isMock: true,
     source: 'mock',
-    spots: finalId === 'healthy' || finalId === 'unknown' ? [] : mockSpots(),
   };
 }
 
-// Clustered lesions around the centre of the frame, like the design's AR view.
-function mockSpots(): Spot[] {
-  const count = 3 + Math.floor(Math.random() * 4);
-  const cx = 0.5 + (Math.random() - 0.5) * 0.1;
-  const cy = 0.52 + (Math.random() - 0.5) * 0.1;
-  return Array.from({ length: count }, () => ({
-    x: cx + (Math.random() - 0.5) * 0.4,
-    y: cy + (Math.random() - 0.5) * 0.36,
-    radius: 0.035 + Math.random() * 0.05,
-  }));
-}
-
-// ── TIER 2: Cloud offload (via local server proxy) ────────────────────────────
-// Called when all local tiers return 'unknown'.
+// ── Tier 2: Cloud offload (via local server proxy) ────────────────────────────
+// Called when the result is 'unknown' and user taps "Ask regional network".
 // The local server proxies to the cloud's larger model — phone never needs cloud credentials.
-// Long timeout (35s) — only triggered on explicit user action, not the auto-inference loop.
+// Long timeout (35s) — only triggered by explicit user action, not the auto-inference loop.
 
 export async function runCloudOffload(frameUri: string): Promise<InferenceResult | null> {
   if (!LOCAL_SERVER_URL) return null;
 
   let base64: string;
   try {
-    base64 = await new File(frameUri).base64();
+    base64 = await FileSystem.readAsStringAsync(frameUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
   } catch {
     return null;
   }
@@ -300,9 +287,12 @@ export async function fetchAdvisory(params: {
 
 // ── MAIN ENTRY POINT ──────────────────────────────────────────────────────────
 
-export async function runInference(frameUri: string): Promise<InferenceResult> {
+export async function runInference(
+  frameUri: string,
+  location?: { lat: number; lng: number },
+): Promise<InferenceResult> {
   // Tier 0: Local LAN server (fastest, keeps API key off the phone)
-  const localResult = await runLocalServerInference(frameUri);
+  const localResult = await runLocalServerInference(frameUri, location);
   if (localResult) return localResult;
 
   // Tier 1: HF online inference
