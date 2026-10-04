@@ -1,0 +1,522 @@
+[
+ {
+  "set": "DEV",
+  "text": "What is this?",
+  "intent": "summary"
+ },
+ {
+  "set": "DEV",
+  "text": "Ni ugonjwa gani huu?",
+  "intent": "summary"
+ },
+ {
+  "set": "DEV",
+  "text": "What should I do today?",
+  "intent": "doNow"
+ },
+ {
+  "set": "DEV",
+  "text": "Nifanye nini sasa hivi?",
+  "intent": "doNow"
+ },
+ {
+  "set": "DEV",
+  "text": "Which spray should I buy?",
+  "intent": "treatment"
+ },
+ {
+  "set": "DEV",
+  "text": "Je, ninahitaji dawa?",
+  "intent": "treatment"
+ },
+ {
+  "set": "DEV",
+  "text": "Dawa gani inafaa?",
+  "intent": "treatment"
+ },
+ {
+  "set": "DEV",
+  "text": "How do I stop it coming back next year?",
+  "intent": "prevention"
+ },
+ {
+  "set": "DEV",
+  "text": "Nitazuiaje usirudi?",
+  "intent": "prevention"
+ },
+ {
+  "set": "DEV",
+  "text": "Will my neighbour's trees get it?",
+  "intent": "spread"
+ },
+ {
+  "set": "DEV",
+  "text": "Je, unaambukiza miti mingine?",
+  "intent": "spread"
+ },
+ {
+  "set": "DEV",
+  "text": "Is the spray dangerous for my kids?",
+  "intent": "safety"
+ },
+ {
+  "set": "DEV",
+  "text": "Je, dawa ni hatari kwa watoto?",
+  "intent": "safety"
+ },
+ {
+  "set": "DEV",
+  "text": "Who can help me?",
+  "intent": "getHelp"
+ },
+ {
+  "set": "DEV",
+  "text": "Nimuulize nani?",
+  "intent": "getHelp"
+ },
+ {
+  "set": "DEV",
+  "text": "Can I use DDT?",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "DEV",
+  "text": "Bei ya kahawa ni kiasi gani?",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "DEV",
+  "text": "Will it rain tomorrow?",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "DEV",
+  "text": "How often do I spray?",
+  "intent": "treatment"
+ },
+ {
+  "set": "DEV",
+  "text": "Nichome majani?",
+  "intent": "doNow"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Tell me about this problem",
+  "intent": "summary"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Hili tatizo linaitwaje?",
+  "intent": "summary"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Is this serious?",
+  "intent": "summary"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Huu ni ugonjwa mbaya?",
+  "intent": "summary"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Where do I start?",
+  "intent": "doNow"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Nianze na nini?",
+  "intent": "doNow"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Should I cut the branches?",
+  "intent": "doNow"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Nikate matawi?",
+  "intent": "doNow"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Can I buy something at the agrovet for this?",
+  "intent": "treatment"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Nitumie kemikali gani?",
+  "intent": "treatment"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "What do I put on the leaves?",
+  "intent": "treatment"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Nipake nini kwenye majani?",
+  "intent": "treatment"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "How can I keep my trees healthy?",
+  "intent": "prevention"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Nifanye nini ili isitokee tena?",
+  "intent": "prevention"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Will pruning stop it?",
+  "intent": "prevention"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Can it jump to my other plants?",
+  "intent": "spread"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Itafika shamba la jirani?",
+  "intent": "spread"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Does it move with the wind?",
+  "intent": "spread"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Do I need to wear gloves?",
+  "intent": "safety"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Ni salama kwa kuku?",
+  "intent": "safety"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Can my children play under the trees after spraying?",
+  "intent": "safety"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Is there someone I can talk to?",
+  "intent": "getHelp"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Naweza kumpata mtaalamu wapi?",
+  "intent": "getHelp"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Should I tell the co-op?",
+  "intent": "getHelp"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "How much is fertiliser now?",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Nipande mahindi?",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "My cow is sick",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Habari yako?",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "When will the buyer come?",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "HELD_OUT",
+  "text": "Lini mvua itanyesha?",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "FRESH",
+  "text": "What is wrong with my tree?",
+  "intent": "summary"
+ },
+ {
+  "set": "FRESH",
+  "text": "Mti wangu una shida gani?",
+  "intent": "summary"
+ },
+ {
+  "set": "FRESH",
+  "text": "Is it a disease or insects?",
+  "intent": "summary"
+ },
+ {
+  "set": "FRESH",
+  "text": "Ni wadudu au ugonjwa?",
+  "intent": "summary"
+ },
+ {
+  "set": "FRESH",
+  "text": "What is the first thing to do?",
+  "intent": "doNow"
+ },
+ {
+  "set": "FRESH",
+  "text": "Niondoe majani yaliyougua?",
+  "intent": "doNow"
+ },
+ {
+  "set": "FRESH",
+  "text": "Should I pull off these leaves?",
+  "intent": "doNow"
+ },
+ {
+  "set": "FRESH",
+  "text": "Nifanye nini leo jioni?",
+  "intent": "doNow"
+ },
+ {
+  "set": "FRESH",
+  "text": "Is there a medicine for it?",
+  "intent": "treatment"
+ },
+ {
+  "set": "FRESH",
+  "text": "Kuna dawa ya kutibu?",
+  "intent": "treatment"
+ },
+ {
+  "set": "FRESH",
+  "text": "How many times should I spray?",
+  "intent": "treatment"
+ },
+ {
+  "set": "FRESH",
+  "text": "Mbolea gani nitumie?",
+  "intent": "treatment"
+ },
+ {
+  "set": "FRESH",
+  "text": "How do I protect my farm from this?",
+  "intent": "prevention"
+ },
+ {
+  "set": "FRESH",
+  "text": "Nikinga shamba langu vipi?",
+  "intent": "prevention"
+ },
+ {
+  "set": "FRESH",
+  "text": "What stops this from happening?",
+  "intent": "prevention"
+ },
+ {
+  "set": "FRESH",
+  "text": "Will all my coffee get sick?",
+  "intent": "spread"
+ },
+ {
+  "set": "FRESH",
+  "text": "Je, itaenea shamba zima?",
+  "intent": "spread"
+ },
+ {
+  "set": "FRESH",
+  "text": "Can I carry it on my clothes?",
+  "intent": "spread"
+ },
+ {
+  "set": "FRESH",
+  "text": "Is it dangerous to touch the leaves?",
+  "intent": "safety"
+ },
+ {
+  "set": "FRESH",
+  "text": "Dawa hii ina sumu?",
+  "intent": "safety"
+ },
+ {
+  "set": "FRESH",
+  "text": "Can I eat after spraying?",
+  "intent": "safety"
+ },
+ {
+  "set": "FRESH",
+  "text": "Where can I get advice?",
+  "intent": "getHelp"
+ },
+ {
+  "set": "FRESH",
+  "text": "Nimpigie nani simu?",
+  "intent": "getHelp"
+ },
+ {
+  "set": "FRESH",
+  "text": "Who knows about coffee diseases?",
+  "intent": "getHelp"
+ },
+ {
+  "set": "FRESH",
+  "text": "What time is it?",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "FRESH",
+  "text": "Nataka kuuza kahawa",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "FRESH",
+  "text": "Can you send money?",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "FRESH",
+  "text": "Tell me a story",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "FRESH",
+  "text": "Shule inafunguliwa lini?",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "FRESH",
+  "text": "How do I grow tomatoes?",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "FINAL",
+  "text": "Hii ni kutu?",
+  "intent": "summary"
+ },
+ {
+  "set": "FINAL",
+  "text": "Is this rust?",
+  "intent": "summary"
+ },
+ {
+  "set": "FINAL",
+  "text": "Majani yangu yana nini?",
+  "intent": "summary"
+ },
+ {
+  "set": "FINAL",
+  "text": "Nifanye nini kwanza na mti huu?",
+  "intent": "doNow"
+ },
+ {
+  "set": "FINAL",
+  "text": "What do I do with the sick leaves?",
+  "intent": "doNow"
+ },
+ {
+  "set": "FINAL",
+  "text": "Niyakate majani haya?",
+  "intent": "doNow"
+ },
+ {
+  "set": "FINAL",
+  "text": "Nitanyunyizia lini?",
+  "intent": "treatment"
+ },
+ {
+  "set": "FINAL",
+  "text": "Which fungicide works?",
+  "intent": "treatment"
+ },
+ {
+  "set": "FINAL",
+  "text": "Nitapata dawa wapi?",
+  "intent": "treatment"
+ },
+ {
+  "set": "FINAL",
+  "text": "Mwaka ujao nifanye nini isirudi?",
+  "intent": "prevention"
+ },
+ {
+  "set": "FINAL",
+  "text": "How do I make my trees stronger?",
+  "intent": "prevention"
+ },
+ {
+  "set": "FINAL",
+  "text": "Inaambukiza kahawa yote?",
+  "intent": "spread"
+ },
+ {
+  "set": "FINAL",
+  "text": "Does it spread by rain?",
+  "intent": "spread"
+ },
+ {
+  "set": "FINAL",
+  "text": "Itaenda kwa miti ya jirani?",
+  "intent": "spread"
+ },
+ {
+  "set": "FINAL",
+  "text": "Nivae nini nikinyunyizia?",
+  "intent": "safety"
+ },
+ {
+  "set": "FINAL",
+  "text": "Is it safe for bees?",
+  "intent": "safety"
+ },
+ {
+  "set": "FINAL",
+  "text": "Maji ya kunywa yataharibika?",
+  "intent": "safety"
+ },
+ {
+  "set": "FINAL",
+  "text": "Afisa ugani yuko wapi?",
+  "intent": "getHelp"
+ },
+ {
+  "set": "FINAL",
+  "text": "Can someone come and look?",
+  "intent": "getHelp"
+ },
+ {
+  "set": "FINAL",
+  "text": "Nitapata mkopo?",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "FINAL",
+  "text": "What is the price of coffee today?",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "FINAL",
+  "text": "Mke wangu ni mgonjwa",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "FINAL",
+  "text": "Play music",
+  "intent": "outOfScope"
+ },
+ {
+  "set": "FINAL",
+  "text": "Avocado zangu zina shida",
+  "intent": "outOfScope"
+ }
+]

@@ -78,6 +78,11 @@ Scored on the held-out 20% split (267 images), using the exact shipped `.tflite`
 | Per-class recall | rust 0.92 · phoma 0.93 · miner 0.96 · healthy 0.96 · **brown eye 0.70** |
 | On-device (emulator, 25 held-out photos) | 17 correct · 8 unsure · 0 confidently wrong · ~1 s/image |
 
+Question classifier (`lib/intentModel.ts`, 86 KB, on-device): on 104 held-out (team-written)
+questions the shipped routing answers **93 correctly, 5 wrong, 6 deferred** to the extension
+officer; every answer comes from the fixed list. No generative LLM runs on the phone — tested and
+removed (unsafe, slow, 466 MB). See TRAINING.md → "Answering questions".
+
 Caveats to state when quoting these: the validation split was reused to choose settings across
 7 training runs, so 91.4% is an upper bound; brown eye has only 27 validation images; BRACOL leaves
 are detached on white backgrounds, so field accuracy will be lower. Not yet measured on a real ARM phone.
@@ -90,6 +95,9 @@ are detached on white backgrounds, so field accuracy will be lower. Not yet meas
 |---|---|---|
 | BRACOL | Coffee leaf disease (4 classes + healthy) | Yes — baked into TFLite model |
 | assets/diseases.json | Advisory text per disease | Yes — bundled |
+| assets/advisory_responses.json | Fixed list of reviewed answers (7 per disease, sw + en) | Yes — bundled |
+| Amazon MASSIVE 1.1 (CC BY 4.0), sw-KE + en-US | Off-topic examples for the question classifier | Yes — baked into intent_model.json |
+| scripts/intent_training/seed_questions.py | **Synthetic** farmer questions (team-written, sw + en) | Yes — baked into intent_model.json |
 | SoilGrids (ISRIC) | Soil pH + N + clay by GPS coord | No — fetched on demand |
 | HF Whisper large-v3 | STT for 99 languages (no Gĩkũyũ — Swahili used) | No — falls back to text input |
 | Meta MMS-TTS (`mms-tts-kik`, `mms-tts-eng`) | Pretrained voices for voice packs (CC-BY-NC 4.0) | Yes — clips pre-generated |
@@ -158,6 +166,10 @@ Data flow (when internet available):
 | `lib/stt.ts` | STT: expo-audio recording + HF Whisper API |
 | `lib/soil.ts` | Soil data: SoilGrids REST API + advisory text |
 | `assets/diseases.json` | Offline disease knowledge base |
+| `assets/advisory_responses.json` | Fixed list of answers the Ask feature may give (sw + en) |
+| `lib/advisor.ts`, `lib/intentModel.ts` | Question routing: block-list → intent classifier → keywords → defer |
+| `lib/tflite.ts` | Tier 2 on-device disease classifier (react-native-fast-tflite) |
+| `scripts/intent_training/` | Intent classifier training, eval set, TS-port check |
 | `assets/model/` | TFLite model + labels.json (gitignored, must be trained) |
 | `components/advisory/AdvisorySheet.tsx` | Disease detail sheet (medium/full detents), log-to-map |
 | `lib/useLogIssue.ts`, `lib/plants.ts` | User-initiated logging + GPS plant association (5 m) |

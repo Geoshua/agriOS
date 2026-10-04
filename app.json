@@ -64,8 +64,7 @@
         }
       ],
       "expo-image",
-      "react-native-fast-tflite",
-      "llama.rn"
+      "react-native-fast-tflite"
     ],
     "experiments": {
       "typedRoutes": true

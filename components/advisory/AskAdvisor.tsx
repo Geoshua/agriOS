@@ -5,16 +5,14 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
 import PressableScale from '../glass/PressableScale';
 import SpeechInput from '../SpeechInput';
-import { makeStyles, useTheme } from '../../lib/theme';
+import { makeStyles } from '../../lib/theme';
 import { ANSWER_INTENTS, Answer, INTENT_LABELS, Intent, Lang, answerChip, answerQuestion, toLang } from '../../lib/advisor';
 import { DEFAULT_LANGUAGE } from '../../lib/stt';
-import { ON_DEVICE_LLM_ROUTER } from '../../lib/config';
-import { isLocalLlmDownloaded, releaseLocalLlm, routeWithLocalLlm } from '../../lib/localLlm';
 
 const ICONS: Record<Exclude<Intent, 'outOfScope'>, keyof typeof Ionicons.glyphMap> = {
   summary: 'help-circle',
@@ -29,15 +27,13 @@ const ICONS: Record<Exclude<Intent, 'outOfScope'>, keyof typeof Ionicons.glyphMa
 const SPEECH_LANG: Record<Lang, string> = { sw: 'sw-KE', en: 'en-US' };
 
 export default function AskAdvisor({ diseaseId }: { diseaseId: string }) {
-  const { c } = useTheme();
   const styles = useStyles();
   const [lang, setLang] = useState<Lang>(toLang(DEFAULT_LANGUAGE));
   const [answer, setAnswer] = useState<Answer | null>(null);
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     setAnswer(null);
-    return () => { Speech.stop(); releaseLocalLlm(); };
+    return () => { Speech.stop(); };
   }, [diseaseId]);
 
   const speak = useCallback((a: Answer) => {
@@ -47,14 +43,8 @@ export default function AskAdvisor({ diseaseId }: { diseaseId: string }) {
 
   const show = useCallback((a: Answer) => { setAnswer(a); speak(a); }, [speak]);
 
-  const onAsk = useCallback(async (question: string) => {
-    setBusy(true);
-    try {
-      const llm = ON_DEVICE_LLM_ROUTER && isLocalLlmDownloaded() ? routeWithLocalLlm : null;
-      show(await answerQuestion({ diseaseId, question, lang, llm }));
-    } finally {
-      setBusy(false);
-    }
+  const onAsk = useCallback((question: string) => {
+    show(answerQuestion({ diseaseId, question, lang }));
   }, [diseaseId, lang, show]);
 
   return (
@@ -81,15 +71,18 @@ export default function AskAdvisor({ diseaseId }: { diseaseId: string }) {
         ))}
       </View>
 
-      {busy ? (
-        <View style={styles.answer}><ActivityIndicator color={c.label} /></View>
-      ) : answer ? (
+      {answer ? (
         <PressableScale onPress={() => speak(answer)} style={styles.answer} accessibilityLabel="Play answer again">
           <View style={styles.answerRow}>
             <Ionicons name="volume-high" size={22} color="#2D6A4F" />
             <Text style={styles.answerText}>{answer.text}</Text>
           </View>
-          {__DEV__ && <Text style={styles.via}>via {answer.via} → {answer.intent}</Text>}
+          {__DEV__ && (
+            <Text style={styles.via}>
+              via {answer.via} → {answer.intent}
+              {answer.confidence != null ? ` (${Math.round(answer.confidence * 100)}%)` : ''}
+            </Text>
+          )}
         </PressableScale>
       ) : null}
 

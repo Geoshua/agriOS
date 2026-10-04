@@ -4,20 +4,22 @@
  *
  * Nothing here generates advice. A question is ROUTED to one intent
  * (summary, doNow, treatment, …) and the matching pre-written response is
- * returned verbatim. Routing order:
- *   1. Keyword matcher (Swahili + English) — deterministic, instant.
- *   2. On-device LLM router (optional, injected) — only for questions the
- *      keywords miss.
- *   3. 'outOfScope' — "ask your extension officer". Never a guess.
+ * returned verbatim — a fixed list of answers that can be checked for safety.
+ * Routing order:
+ *   1. Block-list (banned pesticides, money/prices) → defer.
+ *   2. Intent classifier (lib/intentModel.ts, on-device, ~86 KB) when confident.
+ *   3. Keyword matcher (Swahili stems + English) for what the model is unsure of.
+ *   4. 'outOfScope' — "not sure, ask your extension officer". Never a guess.
  *
- * Why the LLM may not write: in testing, phone-sized models (Qwen2.5-0.5B,
- * Qwen3-0.6B) invented unsafe advice ("Yes, you can use DDT") and garbled
- * Swahili. See TRAINING.md → "On-device LLM".
+ * Why no generative LLM on the phone: in testing, phone-sized models
+ * (Qwen2.5-0.5B, Qwen3-0.6B) invented unsafe advice ("Yes, you can use DDT"),
+ * garbled Swahili and took ~22 s per question. See TRAINING.md.
  *
  * Pure TypeScript, no React Native imports, so it can be unit-tested on desktop.
  */
 
 import data from '../assets/advisory_responses.json';
+import { classifyIntent } from './intentModel';
 
 export type Lang = 'sw' | 'en';
 export type Intent =
@@ -39,11 +41,10 @@ export interface Answer {
   text: string;
   lang: Lang;
   /** How the question was routed — shown in dev builds, useful for judges. */
-  via: 'chip' | 'keywords' | 'llm' | 'fallback';
+  via: 'chip' | 'model' | 'keywords' | 'blocked' | 'fallback';
+  /** Classifier confidence for the top intent (free-text questions only). */
+  confidence?: number;
 }
-
-/** Optional LLM router. Returns an intent, or null if unsure / unavailable. */
-export type LlmRouter = (question: string) => Promise<Intent | null>;
 
 const responses = data.responses as Record<string, Record<Lang, Record<string, string>>>;
 const general = data.general as Record<Lang, Record<string, string>>;
@@ -127,26 +128,23 @@ export function answerChip(diseaseId: string, intent: Intent, lang: Lang): Answe
   return { intent, text: getResponse(diseaseId, intent, lang), lang, via: 'chip' };
 }
 
-/** Free-text / voice question. */
-export async function answerQuestion(params: {
-  diseaseId: string;
-  question: string;
-  lang: Lang;
-  llm?: LlmRouter | null;
-}): Promise<Answer> {
-  const { diseaseId, question, lang, llm } = params;
+/** Free-text / voice question. Synchronous and offline. */
+export function answerQuestion(params: { diseaseId: string; question: string; lang: Lang }): Answer {
+  const { diseaseId, question, lang } = params;
+  const answer = (intent: Intent, via: Answer['via'], confidence?: number): Answer => ({
+    intent,
+    text: getResponse(diseaseId, intent, lang),
+    lang,
+    via,
+    confidence,
+  });
+
+  const p = classifyIntent(question);
+  if (p.blocked) return answer('outOfScope', 'blocked', p.confidence);
+  if (p.intent) return answer(p.intent, 'model', p.confidence);
 
   const kw = matchKeywords(question);
-  if (kw) return { intent: kw, text: getResponse(diseaseId, kw, lang), lang, via: 'keywords' };
+  if (kw) return answer(kw, 'keywords', p.confidence);
 
-  if (llm) {
-    try {
-      const routed = await llm(question);
-      if (routed && routed !== 'outOfScope') {
-        return { intent: routed, text: getResponse(diseaseId, routed, lang), lang, via: 'llm' };
-      }
-    } catch { /* LLM unavailable — fall through */ }
-  }
-
-  return { intent: 'outOfScope', text: getResponse(diseaseId, 'outOfScope', lang), lang, via: 'fallback' };
+  return answer('outOfScope', 'fallback', p.confidence);
 }

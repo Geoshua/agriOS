@@ -30,7 +30,6 @@
     "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",
     "jpeg-js": "^0.4.4",
-    "llama.rn": "^0.13.0-rc.6",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-fast-tflite": "^3.0.1",

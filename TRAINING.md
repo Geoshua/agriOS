@@ -447,30 +447,68 @@ node scripts/emulator-scene.mjs --wall posters/rust.jpg --table posters/healthy.
 - Expect lower confidence than on the raw files: the camera re-renders the poster with room lighting
   and perspective, which is a (weak) stand-in for field conditions.
 
-## On-device LLM: tested, kept off by default
+## Answering questions: intent classifier (on-device LLM tested and removed)
 
-Goal: let Noor type or say a question and get an answer, offline. Measured on a desktop with the
-exact phone model/quant through Ollama, then on the emulator (`app/dev-test.tsx`).
+Noor can tap a question chip or type / say a question. Answers always come from the **fixed list**
+of reviewed responses in `assets/advisory_responses.json` (Swahili + English) — nothing is
+generated, so every possible answer can be checked for safety. The AI's job is to pick the right
+slot, or say "not sure, ask your extension officer".
+
+### Why not an on-device LLM (Qwen) — measured, then removed
 
 1. **Free generation is unsafe at phone size.** Grounded on the pre-written facts, Qwen2.5-0.5B
-   answered *"Can I use DDT?"* with *"Yes, you can use DDT"*, and Swahili output was garbled.
-   So the LLM never writes advice: answers come only from `assets/advisory_responses.json`
-   (reviewed text, Swahili + English).
-2. **LLM as router** (pick which pre-written answer fits): Qwen2.5-0.5B 2/20, Qwen2.5-1.5B 7/20,
-   Qwen3-0.6B 7/20, Qwen3-1.7B 10/20 — every model failed almost all Swahili questions.
-3. **Keyword router** (`lib/advisor.ts`, Swahili stems + English) on a question set written *after*
-   the keywords were frozen: **17/24 correct, 1 wrong, 6 deferred** to "ask your extension officer".
-   Adding Qwen3-0.6B as a gated fallback (two prompts must agree): 18/24 correct but **3 wrong** —
-   it trades honest deferrals for confident wrong answers, which CLAUDE.md rule 5 forbids.
+   answered *"Can I use DDT?"* with *"Yes, you can use DDT"*; Swahili output was garbled.
+2. **LLM as router** (pick the answer slot): Qwen2.5-0.5B 2/20, Qwen2.5-1.5B 7/20, Qwen3-0.6B 7/20,
+   Qwen3-1.7B 10/20 — almost every Swahili question failed.
+3. **On the phone** (Qwen3-0.6B via llama.rn, emulator): ~22 s per question, no gain over keywords.
+4. **Size:** a 382 MB model download, and llama.rn added 84 MB to the APK (156 MB → ~70 MB without
+   it). The brief requires model files small enough to side-load over a weak connection.
 
-4. **On the phone** (emulator, 2 GB RAM): Qwen3-0.6B loads and runs via llama.rn, but averaged
-   **~22 s per question**, and its two routing prompts never agreed on any of the 8 questions the
-   keywords missed — so it changed nothing (17 correct / 1 wrong / 6 deferred, same as keywords alone).
+The free-form LLM stays where the project design puts it: on the co-op hub (`server.mjs` → Ollama
+Qwen2.5-3B), optional and online-only.
 
-Shipped design: icon question chips (deterministic, no typing) + keyword routing for free text;
-the Qwen router exists (`lib/localLlm.ts`, opt-in 382 MB download) behind
-`ON_DEVICE_LLM_ROUTER = false` in `lib/config.ts`. A ≥ 3B model on the hub (`server.mjs`,
-Ollama) is the realistic place for free-form questions.
+### The intent classifier (`lib/intentModel.ts`)
+
+- **Model:** hashed word / word-bigram / char 3–5-gram features (8,192 buckets) → multinomial
+  logistic regression, int8 weights. **86 KB**, pure TypeScript, runs offline in under a
+  millisecond, works in Expo Go. Char n-grams handle Swahili verb prefixes (*ni-ta-enea*).
+- **Data:**
+  - In-domain: `scripts/intent_training/seed_questions.py` — **synthetic**, hand-written by the team
+    (≈ 330 questions, en + sw, 7 answer slots + domain-adjacent off-topic), augmented ×4 with
+    prefixes and disease names. Swahili needs native-speaker review.
+  - Off-topic: **Amazon MASSIVE 1.1** (CC BY 4.0), sw-KE + en-US, 2,000 utterances each from the
+    train partition (alarms, weather, music, …) labelled `outOfScope`.
+  - Evaluation: `scripts/intent_training/eval_questions.json` — 104 questions never trained on
+    (also written by the team, so synthetic; not real farmer questions).
+- **Validation:** split by original question (variants of one question never straddle train and
+  validation). Confidence threshold chosen there: **0.55**, the lowest with ≤ 3% wrong answers.
+- **Policy block-list:** banned pesticides (DDT, paraquat, …) and money / prices always defer,
+  whatever the model says — the app has no price data and must never endorse a banned chemical.
+- **Routing:** block-list → classifier (if ≥ 0.55) → keyword rules → "ask your extension officer".
+
+Results on the 104 held-out questions ("correct" includes correctly deferring off-topic ones):
+
+| | Correct | Wrong | Deferred |
+|---|---|---|---|
+| Keyword rules only | 85 | 4 | 15 |
+| Classifier + block-list only | 81 | 4 | 19 |
+| **Shipped pipeline** | **93** | **5** | **6** |
+| …on the FINAL subset (24; nothing tuned on it) | 21 (keywords: 17) | 2 (keywords: 1) | 1 (keywords: 6) |
+
+Off-topic MASSIVE test utterances (5,948) that wrongly got a farm answer: **0.6%**.
+All wrong answers are still reviewed answers from the fixed list — the five are three chit-chat
+questions answered with the disease summary, and two "do now" / "prevention" mix-ups.
+
+Honest limits: every question (training and test) was written by the team, not collected from
+farmers; Gĩkũyũ is not covered yet (the voice packs are, the answer text and classifier are not).
+The eval set was inspected once to fix two method bugs (a train/validation leak and the block-list)
+before the numbers above.
+
+Reproduce (MASSIVE from https://amazon-massive-nlu-dataset.s3.amazonaws.com/amazon-massive-dataset-1.1.tar.gz):
+```bash
+python scripts/intent_training/train_intent.py --massive <extract>/1.1/data
+node scripts/intent_training/check_ts_port.cjs   # TS features/probabilities == Python
+```
 
 ## Supplementary datasets
 

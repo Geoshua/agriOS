@@ -1,10 +1,9 @@
 /**
- * Dev-only end-to-end test: classifier → threshold → pre-written answer → LLM router,
+ * Dev-only end-to-end test: classifier → threshold → pre-written answer → intent classifier,
  * all on the phone. Open with:  adb shell am start -d agrios://dev-test
  *
  * Inputs pushed by adb into the app's document directory:
  *   devtest/<bracol-class>/*.jpg     held-out validation images
- *   llm/Qwen3-0.6B-Q4_0.gguf        on-device LLM (optional)
  * Every result line is also console.log'd with a [devtest] prefix for logcat.
  */
 
@@ -13,7 +12,6 @@ import { Pressable, ScrollView, Text } from 'react-native';
 import { Directory, Paths } from 'expo-file-system';
 import { classifyWithTflite, TFLITE_AVAILABLE } from '../lib/tflite';
 import { answerQuestion, getResponse, Intent } from '../lib/advisor';
-import { isLocalLlmDownloaded, releaseLocalLlm, routeWithLocalLlm } from '../lib/localLlm';
 import diseasesData from '../assets/diseases.json';
 import AskAdvisor from '../components/advisory/AskAdvisor';
 
@@ -74,25 +72,19 @@ export default function DevTest() {
         log('No devtest images pushed — skipping classifier test');
       }
 
-      // ── 2. Question routing: keywords only vs keywords + on-device LLM ──────
-      const llmReady = isLocalLlmDownloaded();
-      log(`LLM model present: ${llmReady}`);
-      const modes: [string, typeof routeWithLocalLlm | null][] = [['keywords', null]];
-      if (llmReady) modes.push(['keywords+llm', routeWithLocalLlm]);
-      for (const [name, llm] of modes) {
-        let ok = 0, wrong = 0, deferred = 0, llmMs = 0, llmCalls = 0;
-        for (const [q, want] of QUESTIONS) {
-          const t = Date.now();
-          const a = await answerQuestion({ diseaseId: 'coffee_leaf_rust', question: q, lang: 'sw', llm });
-          if (a.via === 'llm' || (llm && a.via === 'fallback')) { llmMs += Date.now() - t; llmCalls++; }
-          if (a.intent === want) ok++;
-          else if (a.intent === 'outOfScope') deferred++;
-          else { wrong++; log(`  WRONG [${name}] "${q}" → ${a.intent} via ${a.via} (want ${want})`); }
-        }
-        log(`ROUTER [${name}]: correct ${ok}/${QUESTIONS.length} | wrong ${wrong} | deferred ${deferred}` +
-          (llmCalls ? ` | LLM avg ${Math.round(llmMs / llmCalls)} ms over ${llmCalls} calls (incl. first load)` : ''));
+      // ── 2. Question routing: on-device intent classifier (+ keyword fallback) ─
+      let ok = 0, wrong = 0, deferred = 0;
+      const t0 = Date.now();
+      const via: Record<string, number> = {};
+      for (const [q, want] of QUESTIONS) {
+        const a = answerQuestion({ diseaseId: 'coffee_leaf_rust', question: q, lang: 'sw' });
+        via[a.via] = (via[a.via] ?? 0) + 1;
+        if (a.intent === want) ok++;
+        else if (a.intent === 'outOfScope') deferred++;
+        else { wrong++; log(`  WRONG "${q}" → ${a.intent} via ${a.via} (want ${want})`); }
       }
-      await releaseLocalLlm();
+      log(`ROUTER: correct ${ok}/${QUESTIONS.length} | wrong ${wrong} | deferred ${deferred} | ` +
+        `${((Date.now() - t0) / QUESTIONS.length).toFixed(1)} ms/question | via ${JSON.stringify(via)}`);
       log('DONE');
     })().catch((e) => log(`ERROR ${String(e)}`));
   }, [run]);
