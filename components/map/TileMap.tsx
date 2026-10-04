@@ -98,12 +98,11 @@ const TileMap = forwardRef<TileMapHandle, Props>(function TileMap({ center, zoom
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
   const s = useSharedValue(2 ** (zoom - Z0));
-  // Pinch and pan run simultaneously, so each keeps its own anchor. Sharing one
-  // (and both writing tx/ty every frame) made a pinch slide the map instead of
-  // zooming about the fingers.
-  const start = useSharedValue({ tx: 0, ty: 0, s: 1, fx: 0, fy: 0 });
-  const panBase = useSharedValue({ x: 0, y: 0, pointers: 0 });
-  const pinching = useSharedValue(false);
+  // Touch tracking for the single pan/zoom gesture below. `base` is the
+  // transform and finger geometry when the current set of fingers went down;
+  // it's re-taken whenever a finger lands or lifts, so nothing jumps.
+  const base = useSharedValue({ tx: 0, ty: 0, s: 1, cx: 0, cy: 0, d: 0, n: 0 });
+  const moved = useSharedValue(false);
   const lastPick = useSharedValue(0);
 
   const toWorld = useCallback(
@@ -179,50 +178,83 @@ const TileMap = forwardRef<TileMapHandle, Props>(function TileMap({ center, zoom
     runOnJS(pickTiles)({ x: tx.value, y: ty.value, s: s.value });
   };
 
-  const pan = Gesture.Pan()
-    .minDistance(4)
-    .averageTouches(true)
-    .onStart((e) => {
-      panBase.value = { x: tx.value - e.translationX, y: ty.value - e.translationY, pointers: e.numberOfPointers };
-      if (onPanStart) runOnJS(onPanStart)();
+  // One gesture for drag and pinch, driven by the raw touches.
+  // Two separate Pan + Pinch recognisers raced each other on real phones: the
+  // pan often won and dragged the map after one finger, so a pinch slid the
+  // map instead of zooming. Here one finger drags and two fingers zoom about
+  // their midpoint (and drag with it) — there is nothing to arbitrate.
+  type Touch = { id: number; x: number; y: number };
+  const geometry = (touches: Touch[]) => {
+    'worklet';
+    const n = Math.min(touches.length, 2);
+    if (n === 0) return { cx: 0, cy: 0, d: 0, n: 0 };
+    const a = touches[0];
+    if (n === 1) return { cx: a.x - viewSize.value.w / 2, cy: a.y - viewSize.value.h / 2, d: 0, n: 1 };
+    const b = touches[1];
+    return {
+      cx: (a.x + b.x) / 2 - viewSize.value.w / 2,
+      cy: (a.y + b.y) / 2 - viewSize.value.h / 2,
+      d: Math.hypot(a.x - b.x, a.y - b.y),
+      n: 2,
+    };
+  };
+  const rebase = (touches: Touch[]) => {
+    'worklet';
+    const g = geometry(touches);
+    base.value = { tx: tx.value, ty: ty.value, s: s.value, ...g };
+  };
+
+  const panZoom = Gesture.Manual()
+    .onTouchesDown((e) => {
+      if (e.numberOfTouches === e.changedTouches.length) moved.value = false; // first finger(s) of a new gesture
+      rebase(e.allTouches);
     })
-    .onUpdate((e) => {
-      // While pinching, the pinch owns the position; keep re-anchoring so the
-      // pan continues smoothly afterwards. Also re-anchor when a finger lifts
-      // or lands — the averaged touch point jumps then.
-      if (pinching.value || e.numberOfPointers !== panBase.value.pointers) {
-        panBase.value = { x: tx.value - e.translationX, y: ty.value - e.translationY, pointers: e.numberOfPointers };
+    .onTouchesMove((e, manager) => {
+      const g = geometry(e.allTouches);
+      const b = base.value;
+      if (g.n !== b.n) {
+        rebase(e.allTouches);
         return;
       }
-      tx.value = panBase.value.x + e.translationX;
-      ty.value = panBase.value.y + e.translationY;
-      maybePick();
-    })
-    .onEnd(() => finalPick());
-
-  const pinch = Gesture.Pinch()
-    .onStart((e) => {
-      pinching.value = true;
-      start.value = { tx: tx.value, ty: ty.value, s: s.value, fx: e.focalX - viewSize.value.w / 2, fy: e.focalY - viewSize.value.h / 2 };
-      if (onPanStart) runOnJS(onPanStart)();
-    })
-    .onUpdate((e) => {
-      const st = start.value;
-      const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, st.s * e.scale));
-      const k = next / st.s;
-      // The world point that was under the fingers stays under them — including
-      // when the fingers move together (two-finger pan).
-      const fx = e.focalX - viewSize.value.w / 2;
-      const fy = e.focalY - viewSize.value.h / 2;
-      tx.value = fx - (st.fx - st.tx) * k;
-      ty.value = fy - (st.fy - st.ty) * k;
+      if (!moved.value) {
+        // Don't steal taps (pins, popovers): start only after real movement.
+        if (g.n === 1 && Math.hypot(g.cx - b.cx, g.cy - b.cy) < 4) return;
+        moved.value = true;
+        manager.activate();
+        if (onPanStart) runOnJS(onPanStart)();
+      }
+      const next = g.n === 2 && b.d > 0 ? Math.max(MIN_SCALE, Math.min(MAX_SCALE, b.s * (g.d / b.d))) : b.s;
+      const k = next / b.s;
+      // The world point that was under the fingers stays under them.
+      tx.value = g.cx - (b.cx - b.tx) * k;
+      ty.value = g.cy - (b.cy - b.ty) * k;
       s.value = next;
       maybePick();
     })
-    .onFinalize(() => {
-      pinching.value = false;
+    .onTouchesUp((e, manager) => {
+      const lifted = new Set(e.changedTouches.map((t) => t.id));
+      const left = e.allTouches.filter((t) => !lifted.has(t.id));
+      if (left.length === 0) {
+        // A touch that never moved is a tap: fail, so pins and the map's
+        // onPress still receive it.
+        if (moved.value) {
+          finalPick();
+          manager.end();
+        } else {
+          manager.fail();
+        }
+      } else {
+        rebase(left);
+      }
     })
-    .onEnd(() => finalPick());
+    .onTouchesCancelled((_e, manager) => {
+      if (moved.value) {
+        finalPick();
+        manager.end();
+      } else {
+        manager.fail();
+      }
+    });
 
   const doubleTap = Gesture.Tap()
     .numberOfTaps(2)
@@ -237,7 +269,7 @@ const TileMap = forwardRef<TileMapHandle, Props>(function TileMap({ center, zoom
       s.value = withTiming(next, cfg, () => finalPick());
     });
 
-  const gesture = Gesture.Simultaneous(pan, pinch, doubleTap);
+  const gesture = Gesture.Simultaneous(panZoom, doubleTap);
 
   // ── Imperative API ──────────────────────────────────────────────────────────
   useImperativeHandle(
