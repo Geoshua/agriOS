@@ -7,17 +7,24 @@
 
 import React, { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+import { requireOptionalNativeModule } from 'expo';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import PressableScale from '../glass/PressableScale';
 import Glass from '../glass/Glass';
 import { MINI_SIZE, SIDE, useChromeInsets } from '../../lib/layout';
 
+// Builds made before expo-image-picker was added lack the native module;
+// importing it eagerly crashed the whole Scan screen. Load lazily, hide if absent.
+const PICKER_AVAILABLE = !!requireOptionalNativeModule('ExponentImagePicker');
+
 export default function GalleryButton({ onPicked }: { onPicked: (uri: string) => Promise<void> }) {
   const { miniBottom } = useChromeInsets();
   const [busy, setBusy] = useState(false);
 
+  if (!PICKER_AVAILABLE) return null;
+
   async function pick() {
+    const ImagePicker = await import('expo-image-picker');
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
     if (res.canceled || !res.assets?.[0]) return;
     setBusy(true);

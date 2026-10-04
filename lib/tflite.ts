@@ -36,7 +36,15 @@ async function getModel(): Promise<TfliteModel | null> {
     loading = (async () => {
       try {
         const { loadTensorflowModel } = await import('react-native-fast-tflite');
-        model = await loadTensorflowModel(MODEL_SOURCE as number, []); // [] = default CPU delegate
+        // In release builds a bundled asset resolves to an Android resource name,
+        // which fast-tflite's loader (java.net.URL) can't open — the model never
+        // loaded and every scan silently fell back to the mock. expo-asset copies
+        // it to a local file first; that works in debug and release.
+        const { Asset } = await import('expo-asset');
+        const asset = Asset.fromModule(MODEL_SOURCE as number);
+        await asset.downloadAsync();
+        const url = asset.localUri ?? asset.uri;
+        model = await loadTensorflowModel({ url }, []); // [] = default CPU delegate
         return model;
       } catch (e) {
         console.warn('[tflite] load failed', e);

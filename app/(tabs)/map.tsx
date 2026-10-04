@@ -382,28 +382,9 @@ export default function MapScreen() {
       {/* CONTROL LAYER */}
       <View style={[styles.header, { top: top - 2 }]} pointerEvents="box-none">
         <View style={styles.titleRow} pointerEvents="box-none">
-          <View pointerEvents="none">
+          <View pointerEvents="none" style={styles.titleBlock}>
             <Text style={styles.title} accessibilityRole="header">Field Map</Text>
             <Text style={styles.subtitle}>{subtitle}</Text>
-          </View>
-          <View style={styles.mapButtons} pointerEvents="box-none">
-            <PressableScale onPress={recenter} disabled={!location} accessibilityRole="button" accessibilityLabel="Center on my location">
-              <Glass radius={24} style={styles.locate}>
-                <Locate />
-              </Glass>
-            </PressableScale>
-            {/* Floating demo toggle: rural farm with seeded pins, health and community data */}
-            <PressableScale
-              onPress={toggleDemo}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: demo }}
-              accessibilityLabel={demo ? 'Leave demo farm' : 'Show demo farm'}
-            >
-              <Glass radius={24} style={[styles.locate, demo && styles.demoOn]}>
-                <Leaf size={22} color={demo ? '#FFFFFF' : colors.primary} />
-              </Glass>
-              <Text style={styles.demoLabel}>{demo ? 'Exit demo' : 'Demo'}</Text>
-            </PressableScale>
           </View>
         </View>
 
@@ -462,6 +443,29 @@ export default function MapScreen() {
       )}
 
       {/* Tab bar accessory: legend for the active layer */}
+      {/* Floating map buttons, bottom right above the legend: demo farm + re-centre */}
+      {!selectedRegion && (
+        <View style={[styles.mapButtons, { bottom: accessoryBottom + 90 }]} pointerEvents="box-none">
+          {/* Floating demo toggle: rural farm with seeded pins, health and community data */}
+          <PressableScale
+            onPress={toggleDemo}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: demo }}
+            accessibilityLabel={demo ? 'Leave demo farm' : 'Show demo farm'}
+          >
+            <Glass radius={24} style={[styles.locate, demo && styles.demoOn]}>
+              <Leaf size={22} color={demo ? '#FFFFFF' : colors.primary} />
+            </Glass>
+            <Text style={styles.demoLabel}>{demo ? 'Exit demo' : 'Demo'}</Text>
+          </PressableScale>
+          <PressableScale onPress={recenter} disabled={!location} accessibilityRole="button" accessibilityLabel="Center on my location">
+            <Glass radius={24} style={styles.locate}>
+              <Locate />
+            </Glass>
+          </PressableScale>
+        </View>
+      )}
+
       <Glass radius={27} style={[styles.legend, { bottom: accessoryBottom }, legendStyle]}>
         {layer === 'pins' && <PinsLegend key="pins" issues={mapped} />}
         {layer === 'health' && <HealthLegend key="health" />}
@@ -480,14 +484,15 @@ const useStyles = makeStyles((c) => ({
   title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.7, lineHeight: 40, color: c.label },
   subtitle: { fontSize: 16, fontWeight: '500', color: c.labelSecondary },
   locate: { width: 48, height: 48, marginTop: 4, alignItems: 'center', justifyContent: 'center' },
-  mapButtons: { alignItems: 'center', gap: 6 },
+  mapButtons: { position: 'absolute', right: SIDE, alignItems: 'center', gap: 10 },
+  titleBlock: { flex: 1 },
   demoOn: { backgroundColor: colors.primary },
-  demoLabel: { marginTop: 2, fontSize: 12, fontWeight: '600', textAlign: 'center', color: c.label },
+  demoLabel: { marginTop: 2, fontSize: 12, fontWeight: '600', textAlign: 'center', color: c.label, textShadowColor: c.groundMap, textShadowRadius: 3 },
   layerSwitch: { alignSelf: 'flex-start', height: 44 },
   layerItem: { height: 38, paddingHorizontal: 16 },
   legend: { position: 'absolute', left: SIDE, right: SIDE },
   attribution: { position: 'absolute', right: SIDE + 6, fontSize: 10, color: c.labelTertiary },
-  hint: { position: 'absolute', left: SIDE, right: SIDE, alignItems: 'center' },
+  hint: { position: 'absolute', left: SIDE, right: SIDE + 64, alignItems: 'center' },
   hintGlass: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 16 },
   hintText: { fontSize: 15, fontWeight: '500', color: c.labelStrong, flexShrink: 1 },
   me: {
