@@ -429,6 +429,36 @@ python scripts/model_training/train.py --data-dir ~/bracol_small --output-dir ./
 python scripts/model_training/evaluate.py --data-dir ~/bracol_small --model-dir ./output
 ```
 
+## Any-leaf model (run 10) — what ships now
+
+A real outdoor test showed the coffee-only model couldn't even call an ordinary healthy leaf
+healthy. Run 10 changes the question: **is there a leaf, does it look healthy, and if not, is it
+one of the four coffee diseases?** Classes: `healthy` (any crop), the 4 coffee diseases,
+`other_disease` ("leaf problem — ask an officer", never named), `no_leaf` ("point at a leaf").
+
+Data (`make_leaf_dataset.py`): BRACOL + phone-frame composites (`make_composites.py`, synthetic),
+PlantVillage healthy leaves of 12 crops (CC BY-SA, lab photos) and a sample of diseased classes,
+**PlantDoc train split** (CC BY 4.0, real field photos), procedurally generated empty scenes
+(synthetic). PlantDoc's **test split** (236 field photos) is never trained on.
+
+Shipped: best phase-2 checkpoint of run 10b (MobileNetV2, fine-tune 100 layers @ 3e-5),
+exported with `export_checkpoint.py`, 2.6 MB, dynamic-range quantised.
+
+| Measure (shipped TFLite, app's crop + 0.60 threshold) | Coffee-only (run 7) | **Run 10b** |
+|---|---|---|
+| Outdoor healthy leaves (PlantDoc test) → "Healthy" | 12% | **81%** |
+| Outdoor healthy leaves → wrongly flagged | 20% | 6% |
+| Outdoor diseased leaves → problem flagged | 47% | **89%** |
+| Outdoor diseased leaves → wrongly "Healthy" | 0% | 3% |
+| Held-out validation, 7 classes (744) | — | **96.0%** (97.8% when confident) |
+| Recall: healthy / no_leaf / other_disease | — | 1.00 / 1.00 / 0.96 |
+| Recall: rust / phoma / miner / brown eye | — | 0.92 / 0.93 / 0.96 / **0.70** |
+
+Honest limits: PlantDoc/PlantVillage contain no coffee, so "outdoor" numbers measure leaf/healthy/
+problem detection, not coffee-disease naming in the field; coffee validation is still BRACOL
+(white background). Brown eye (27 val images) remains the weakest class. On the in-app demo
+scene (painted background) 3/8 leaves are named correctly, 4 are "Not sure", 1 phoma → miner.
+
 ## Testing in the emulator's virtual scene
 
 The Android emulator's back camera can show a 3D room with two picture slots (a wall poster and
