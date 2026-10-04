@@ -114,6 +114,9 @@ def main():
                         help="Class weight = balanced_weight ** power. 1.0 = fully balanced; "
                              "softened weights stop the model over-predicting rare classes")
     parser.add_argument("--label-smoothing", type=float, default=0.1)
+    parser.add_argument("--val-dir", default=None,
+                        help="Separate validation folder (class subfolders). Use with make_composites.py "
+                             "output: --data-dir <out>/train --val-dir <out>/val. Default: 20%% split of --data-dir")
     parser.add_argument("--quantization", choices=["dynamic", "int8"], default="dynamic",
                         help="dynamic: int8 weights, float activations (measured ~1.5 pts below float). "
                              "int8: full integer incl. activations (measured ~8 pts below float on BRACOL)")
@@ -147,7 +150,7 @@ def main():
 
     augment = ImageDataGenerator(
         rescale=1.0 / 255,
-        validation_split=0.2,
+        validation_split=0.0 if args.val_dir else 0.2,
         rotation_range=30,
         width_shift_range=0.15,
         height_shift_range=0.15,
@@ -165,20 +168,21 @@ def main():
         target_size=(IMG_SIZE, IMG_SIZE),
         batch_size=args.batch_size,
         class_mode="categorical",
-        subset="training",
+        subset=None if args.val_dir else "training",
         shuffle=True,
     )
 
     # Validation is resized + rescaled only — no augmentation. Same split
     # parameters so Keras picks the identical held-out 20%.
-    plain = ImageDataGenerator(rescale=1.0 / 255, validation_split=0.2)
+    plain = ImageDataGenerator(rescale=1.0 / 255, validation_split=0.0 if args.val_dir else 0.2)
+    plain_val = ImageDataGenerator(rescale=1.0 / 255) if args.val_dir else plain
 
-    val_gen = plain.flow_from_directory(
-        image_root,
+    val_gen = plain_val.flow_from_directory(
+        Path(args.val_dir).expanduser() if args.val_dir else image_root,
         target_size=(IMG_SIZE, IMG_SIZE),
         batch_size=args.batch_size,
         class_mode="categorical",
-        subset="validation",
+        subset=None if args.val_dir else "validation",
         shuffle=False,
     )
 
@@ -310,7 +314,7 @@ def main():
         target_size=(IMG_SIZE, IMG_SIZE),
         batch_size=args.batch_size,
         class_mode="categorical",
-        subset="training",
+        subset=None if args.val_dir else "training",
         shuffle=True,
         seed=42,
     )

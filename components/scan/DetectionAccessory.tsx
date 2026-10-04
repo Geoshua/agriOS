@@ -39,12 +39,14 @@ interface Props {
   logState: LogState;
   onOpen: () => void;
   onLog: () => void;
+  /** Result came from the mock (no model on this device) — label it, never log it. */
+  demo?: boolean;
 }
 
 const enter = FadeInDown.springify().damping(20).stiffness(260).withInitialValues({ opacity: 0, transform: [{ translateY: 10 }] });
 const exit = FadeOutUp.duration(140);
 
-export default function DetectionAccessory({ mode, disease, confidence, logState, onOpen, onLog }: Props) {
+export default function DetectionAccessory({ mode, disease, confidence, logState, onOpen, onLog, demo = false }: Props) {
   const { accessoryBottom, miniBottom, tabBottom } = useChromeInsets();
   const { g } = useTheme();
   const styles = useStyles();
@@ -69,7 +71,7 @@ export default function DetectionAccessory({ mode, disease, confidence, logState
 
   const kind = disease ? severityGlyph(disease.severity) : null;
   const tint = disease ? severityOnDark[disease.severity] ?? severityOnDark.unknown : severityOnDark.unknown;
-  const canLog = !!disease;
+  const canLog = !!disease && !demo;
   const pct = Math.round(confidence * 100);
 
   const title = disease
@@ -78,7 +80,9 @@ export default function DetectionAccessory({ mode, disease, confidence, logState
       : sentenceCase(disease.name)
     : compact ? 'Find a leaf' : 'Point at a coffee leaf';
   const subtitle = disease
-    ? `${pct}% · ${compact ? severityTiny[disease.severity] : severityShort[disease.severity]}`
+    ? demo
+      ? compact ? 'Demo · no model' : 'Demo only · no disease model on this device'
+      : `${pct}% · ${compact ? severityTiny[disease.severity] : severityShort[disease.severity]}`
     : compact ? 'Scanning…' : 'Hold steady — scanning automatically';
 
   return (

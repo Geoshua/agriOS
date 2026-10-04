@@ -20,6 +20,7 @@ def main():
     parser = argparse.ArgumentParser(description="agriOS TFLite per-class evaluation")
     parser.add_argument("--data-dir", required=True)
     parser.add_argument("--model-dir", default="./output")
+    parser.add_argument("--val-dir", default=None, help="Evaluate every image in this folder instead of the 20%% split")
     parser.add_argument("--min-accuracy", type=float, default=0.88)
     parser.add_argument("--min-recall", type=float, default=0.75)
     args = parser.parse_args()
@@ -39,12 +40,12 @@ def main():
     threshold = labels["confidence_threshold"]
 
     image_root = find_image_root(Path(args.data_dir).expanduser().resolve())
-    gen = ImageDataGenerator(rescale=1.0 / 255, validation_split=0.2).flow_from_directory(
-        image_root,
+    gen = ImageDataGenerator(rescale=1.0 / 255, validation_split=0.0 if args.val_dir else 0.2).flow_from_directory(
+        Path(args.val_dir).expanduser() if args.val_dir else image_root,
         target_size=(size, size),
         batch_size=32,
         class_mode="categorical",
-        subset="validation",
+        subset=None if args.val_dir else "validation",
         shuffle=False,
     )
 

@@ -18,6 +18,7 @@ import ScanTopBar from '../../components/scan/ScanTopBar';
 import ARSpots from '../../components/scan/ARSpots';
 import CameraGuides from '../../components/scan/CameraGuides';
 import CaptureButton from '../../components/scan/CaptureButton';
+import GalleryButton from '../../components/scan/GalleryButton';
 import ModeRail from '../../components/scan/ModeRail';
 import DetectionAccessory from '../../components/scan/DetectionAccessory';
 import AdvisorySheet, { Detent } from '../../components/advisory/AdvisorySheet';
@@ -106,13 +107,31 @@ export default function ScanScreen() {
   const confidence = currentDetection?.result.confidence ?? 0;
   const spots = currentDetection?.result.spots ?? [];
   const { state: captureState, last: lastCapture, capture } = useManualCapture(cameraRef, isRunningRef);
-  const { state: logState, plantName: loggedPlant, log } = useLogIssue(disease, confidence, `${disease?.id}-${activeBlock}`);
+  const { state: logState, plantName: loggedPlant, log: logIssue } = useLogIssue(disease, confidence, `${disease?.id}-${activeBlock}`);
+  // Mock results (Expo Go, or the model failed to load) are labelled and never logged.
+  const isDemo = !!currentDetection?.result.isMock;
+  const log = (notes?: string) => {
+    if (!isDemo) logIssue(notes);
+  };
 
   function openDetails() {
     if (!disease) return;
     if (scanMode !== 'details') liveMode.current = scanMode;
     setScanMode('details');
     setDetent('medium');
+  }
+
+  // "Test a photo": classify a gallery image with the same pipeline and show it.
+  // Opening the sheet pauses the live loop so the camera doesn't overwrite it.
+  async function testPhoto(uri: string) {
+    const result = await runInference(uri);
+    setCurrentDetection({ result, timestamp: Date.now() });
+    const picked = getDisease(result.diseaseId);
+    if (picked) {
+      if (scanMode !== 'details') liveMode.current = scanMode;
+      setScanMode('details');
+      setDetent('medium');
+    }
   }
 
   function closeDetails() {
@@ -170,6 +189,7 @@ export default function ScanScreen() {
 
       {scanMode === 'camera' && <CameraGuides scanning={scanning} />}
       {scanMode === 'camera' && <CaptureButton state={captureState} last={lastCapture} onPress={capture} />}
+      {scanMode === 'camera' && <GalleryButton onPicked={testPhoto} />}
 
       {/* CONTROL LAYER: Liquid Glass */}
       <ModeRail mode={scanMode} detailsEnabled={!!disease} onSelect={selectMode} />
@@ -180,6 +200,7 @@ export default function ScanScreen() {
         logState={logState}
         onOpen={openDetails}
         onLog={log}
+        demo={isDemo}
       />
 
       {/* Tapping the visible camera area dismisses the sheet. */}
