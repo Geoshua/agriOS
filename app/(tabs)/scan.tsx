@@ -13,7 +13,7 @@ import { useOffloadQueue } from '../../lib/useOffloadQueue';
 import { colors } from '../../lib/theme';
 import ScreenTransition from '../../components/glass/ScreenTransition';
 import PressableScale from '../../components/glass/PressableScale';
-import { Leaf } from '../../components/glass/Icons';
+import { Leaf, LookAround } from '../../components/glass/Icons';
 import ScanTopBar from '../../components/scan/ScanTopBar';
 import ARSpots from '../../components/scan/ARSpots';
 import CameraGuides from '../../components/scan/CameraGuides';
@@ -21,6 +21,7 @@ import CaptureButton from '../../components/scan/CaptureButton';
 import GalleryButton from '../../components/scan/GalleryButton';
 import ModeRail from '../../components/scan/ModeRail';
 import DetectionAccessory from '../../components/scan/DetectionAccessory';
+import DemoScene, { DemoSceneHandle } from '../../components/scan/DemoScene';
 import AdvisorySheet, { Detent } from '../../components/advisory/AdvisorySheet';
 import { CLOUD_SERVER_URL, LOCAL_SERVER_URL } from '../../lib/config';
 
@@ -31,6 +32,11 @@ export default function ScanScreen() {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
+  const demoRef = useRef<DemoSceneHandle>(null);
+  // Demo scene: a 360° panorama of leaves stands in for the camera (for demos without plants).
+  const [demo, setDemo] = useState(false);
+  const demoActiveRef = useRef(demo);
+  demoActiveRef.current = demo;
   const isRunningRef = useRef(false);
   const focused = useIsFocused();
 
@@ -56,7 +62,7 @@ export default function ScanScreen() {
   const [detent, setDetent] = useState<Detent>('closed');
   const sheetPos = useSharedValue(0);
 
-  const scanning = !!permission?.granted && isScanning && scanMode !== 'details' && focused;
+  const scanning = (!!permission?.granted || demo) && isScanning && scanMode !== 'details' && focused;
 
   // Retry any queued cloud offloads when the app comes back to foreground.
   useOffloadQueue();
@@ -80,27 +86,36 @@ export default function ScanScreen() {
   // run nor overwrite that result (it used to, ~1 s later, with a camera frame).
   const photoTestRef = useRef(false);
 
+  /** One low-res frame from whichever source is showing: the camera or the demo scene. */
+  const grabFrame = useCallback(async (): Promise<string | null> => {
+    if (demoActiveRef.current) return (await demoRef.current?.captureFrame()) ?? null;
+    const photo = await cameraRef.current?.takePictureAsync({
+      quality: 0.4,
+      skipProcessing: true,
+      base64: false,
+    });
+    return photo?.uri ?? null;
+  }, []);
+
   const runScan = useCallback(async () => {
-    if (isRunningRef.current || photoTestRef.current || !cameraRef.current) return;
+    if (isRunningRef.current || photoTestRef.current) return;
     isRunningRef.current = true;
     try {
-      const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.4,
-        skipProcessing: true,
-        base64: false,
-      });
-      if (!photo) return;
-      // Pass cached GPS so the hub can anonymise and queue the scan for /heatmap.
-      const result = await runInference(photo.uri, lastLocationRef.current ?? undefined);
+      const uri = await grabFrame();
+      if (!uri) return;
+      // Pass cached GPS so the hub can anonymise and queue the scan for /heatmap —
+      // but never for demo frames, which aren't real observations from this field.
+      const location = demoActiveRef.current ? undefined : lastLocationRef.current ?? undefined;
+      const result = await runInference(uri, location);
       if (photoTestRef.current) return; // a photo test started meanwhile — keep its result
-      setLastFrameUri(photo.uri);
+      setLastFrameUri(uri);
       setCurrentDetection({ result, timestamp: Date.now() });
     } catch (_) {
       // Silently skip failed frames
     } finally {
       isRunningRef.current = false;
     }
-  }, [setCurrentDetection, setLastFrameUri]);
+  }, [grabFrame, setCurrentDetection, setLastFrameUri]);
 
   useEffect(() => {
     if (!scanning) return;
@@ -167,7 +182,7 @@ export default function ScanScreen() {
 
   if (!permission) return <View style={styles.container} />;
 
-  if (!permission.granted) {
+  if (!permission.granted && !demo) {
     return (
       <ScreenTransition background={colors.black} statusBar="light">
         <View style={styles.permission}>
@@ -176,6 +191,10 @@ export default function ScanScreen() {
           <Text style={styles.permissionBody}>agriOS needs the camera to spot rust, miners and other problems on your trees.</Text>
           <PressableScale onPress={requestPermission} style={styles.permissionButton} accessibilityRole="button">
             <Text style={styles.permissionButtonText}>Allow camera</Text>
+          </PressableScale>
+          <PressableScale onPress={() => setDemo(true)} style={styles.demoButton} accessibilityRole="button">
+            <LookAround color={colors.onDark} />
+            <Text style={styles.permissionButtonText}>Try demo scene</Text>
           </PressableScale>
         </View>
       </ScreenTransition>
@@ -186,24 +205,34 @@ export default function ScanScreen() {
     <ScreenTransition background={colors.black} statusBar="light">
       {/* CONTENT LAYER: camera + AR annotations */}
       <Animated.View style={[StyleSheet.absoluteFill, styles.cameraWrap, cameraStyle]}>
-        <CameraView
-          ref={cameraRef}
-          style={StyleSheet.absoluteFill}
-          facing="back"
-          enableTorch={torch && focused}
-          animateShutter={false}
-          mute
-        />
+        {demo ? (
+          <DemoScene ref={demoRef} active={focused} />
+        ) : (
+          <CameraView
+            ref={cameraRef}
+            style={StyleSheet.absoluteFill}
+            facing="back"
+            enableTorch={torch && focused}
+            animateShutter={false}
+            mute
+          />
+        )}
         <ARSpots spots={spots} visible={scanMode === 'ar'} />
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, styles.dim, dimStyle]} pointerEvents="none" />
 
-      {scanMode === 'camera' && <CameraGuides scanning={scanning} />}
-      {scanMode === 'camera' && <CaptureButton state={captureState} last={lastCapture} onPress={capture} />}
-      {scanMode === 'camera' && <GalleryButton onPicked={testPhoto} />}
+      {scanMode === 'camera' && !demo && <CameraGuides scanning={scanning} />}
+      {scanMode === 'camera' && !demo && <CaptureButton state={captureState} last={lastCapture} onPress={capture} />}
+      {scanMode === 'camera' && !demo && <GalleryButton onPicked={testPhoto} />}
 
       {/* CONTROL LAYER: Liquid Glass */}
-      <ModeRail mode={scanMode} detailsEnabled={!!disease} onSelect={selectMode} />
+      <ModeRail
+        mode={scanMode}
+        detailsEnabled={!!disease}
+        onSelect={selectMode}
+        demoActive={demo}
+        onToggleDemo={() => setDemo((d) => !d)}
+      />
       <DetectionAccessory
         mode={scanMode}
         disease={disease}
@@ -221,7 +250,7 @@ export default function ScanScreen() {
 
       {/* Contribution indicator — only when scans can actually reach a hub (GPS + server
           configured); drawn under the top bar so the block menu covers it. */}
-      {lastKnownLocation && (LOCAL_SERVER_URL || CLOUD_SERVER_URL) && detent === 'closed' && (
+      {lastKnownLocation && (LOCAL_SERVER_URL || CLOUD_SERVER_URL) && detent === 'closed' && !demo && (
         <Animated.View
           entering={FadeIn.duration(240)}
           exiting={FadeOut.duration(160)}
@@ -237,6 +266,7 @@ export default function ScanScreen() {
         mode={scanMode}
         scanning={scanning}
         onBack={() => (scanMode === 'details' ? closeDetails() : setScanMode('ar'))}
+        showTorch={!demo}
       />
 
       <AdvisorySheet
@@ -270,6 +300,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   permissionButtonText: { color: colors.white, fontSize: 17, fontWeight: '600' },
+  demoButton: {
+    height: 54,
+    paddingHorizontal: 24,
+    borderRadius: 27,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
   networkPill: {
     position: 'absolute',
     alignSelf: 'center',

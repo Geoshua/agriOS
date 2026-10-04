@@ -87,9 +87,11 @@ interface Props {
   mode: ScanMode;
   scanning: boolean;
   onBack: () => void;
+  /** False while the demo scene replaces the camera (no torch to switch). */
+  showTorch?: boolean;
 }
 
-export default function ScanTopBar({ mode, scanning, onBack }: Props) {
+export default function ScanTopBar({ mode, scanning, onBack, showTorch = true }: Props) {
   const { top } = useChromeInsets();
   const { g } = useTheme();
   const styles = useStyles();
@@ -153,7 +155,7 @@ export default function ScanTopBar({ mode, scanning, onBack }: Props) {
           )}
         </View>
 
-        {mode !== 'details' && (
+        {mode !== 'details' && showTorch && (
           <Animated.View entering={pillIn} exiting={pillOut}>
             <PressableScale
               onPress={() => setTorch(!torch)}

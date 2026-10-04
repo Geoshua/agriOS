@@ -1,5 +1,6 @@
 /**
- * Vertical glass scan-mode control: AR · Camera · Details.
+ * Vertical glass scan-mode control: AR · Camera · Details, plus a separate
+ * "Demo" toggle below it that swaps the camera for the 360° demo scene.
  *
  * Swipe it right to tuck it away: the rail follows the finger and, past a
  * threshold (or with a flick), collapses into a small glass tab docked at the
@@ -8,7 +9,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Extrapolation,
@@ -22,8 +23,8 @@ import Animated, {
 import GlassSegmented, { SegmentItem } from '../glass/GlassSegmented';
 import Glass from '../glass/Glass';
 import PressableScale from '../glass/PressableScale';
-import { Camera, ChevronLeft, Cube, Document } from '../glass/Icons';
-import { spring, timing, useTheme } from '../../lib/theme';
+import { Camera, ChevronLeft, Cube, Document, LookAround } from '../glass/Icons';
+import { glass, spring, timing, useTheme } from '../../lib/theme';
 import type { ScanMode } from '../../lib/store';
 import { SIDE } from '../../lib/layout';
 
@@ -35,16 +36,19 @@ const RAIL_HEIGHT = ITEM * 3 + 2 * 2 + 4 * 2;
 const TRAVEL = RAIL_WIDTH + SIDE;
 const TAB_WIDTH = 30;
 const TAB_HEIGHT = 72;
+const DEMO_GAP = 10;
 
 interface Props {
   mode: ScanMode;
   detailsEnabled: boolean;
   onSelect: (mode: ScanMode) => void;
+  demoActive: boolean;
+  onToggleDemo: () => void;
 }
 
-export default function ModeRail({ mode, detailsEnabled, onSelect }: Props) {
+export default function ModeRail({ mode, detailsEnabled, onSelect, demoActive, onToggleDemo }: Props) {
   const { height } = useWindowDimensions();
-  const { g } = useTheme();
+  const { g, tone } = useTheme();
   const hidden = mode === 'details';
   const [collapsed, setCollapsed] = useState(false);
 
@@ -132,8 +136,24 @@ export default function ModeRail({ mode, detailsEnabled, onSelect }: Props) {
             radius={RAIL_WIDTH / 2}
             highlightHeight="60%"
             accessibilityLabel="Scan mode"
-            style={StyleSheet.absoluteFill}
+            style={styles.segmented}
           />
+          <PressableScale
+            onPress={onToggleDemo}
+            pressedScale={0.9}
+            accessibilityRole="switch"
+            accessibilityLabel="Demo scene"
+            accessibilityState={{ checked: demoActive }}
+            style={styles.demo}
+          >
+            <Glass radius={RAIL_WIDTH / 2} highlightHeight="60%" style={styles.demoGlass}>
+              {demoActive && <View style={[styles.demoLens, { backgroundColor: glass[tone].lens }]} />}
+              <LookAround color={demoActive ? g.active : g.text} />
+              <Text style={[styles.demoLabel, { color: demoActive ? g.active : g.text }]} numberOfLines={1}>
+                Demo
+              </Text>
+            </Glass>
+          </PressableScale>
         </Animated.View>
       </GestureDetector>
 
@@ -162,7 +182,12 @@ export default function ModeRail({ mode, detailsEnabled, onSelect }: Props) {
 }
 
 const styles = StyleSheet.create({
-  rail: { position: 'absolute', right: SIDE, width: RAIL_WIDTH, height: RAIL_HEIGHT },
+  rail: { position: 'absolute', right: SIDE, width: RAIL_WIDTH, height: RAIL_HEIGHT + DEMO_GAP + ITEM + 8 },
+  segmented: { position: 'absolute', left: 0, right: 0, top: 0, height: RAIL_HEIGHT },
+  demo: { position: 'absolute', left: 0, right: 0, bottom: 0, height: ITEM + 8 },
+  demoGlass: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 1 },
+  demoLabel: { fontSize: 12, fontWeight: '600' },
+  demoLens: { position: 'absolute', left: 4, right: 4, top: 4, bottom: 4, borderRadius: (RAIL_WIDTH - 8) / 2 },
   tab: { position: 'absolute', right: 6, width: TAB_WIDTH, height: TAB_HEIGHT },
   tabGlass: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

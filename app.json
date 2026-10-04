@@ -30,7 +30,10 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.agrios.app"
+      "package": "com.agrios.app",
+      "blockedPermissions": [
+        "android.permission.ACTIVITY_RECOGNITION"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -64,7 +67,13 @@
         }
       ],
       "expo-image",
-      "react-native-fast-tflite"
+      "react-native-fast-tflite",
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "agriOS uses motion sensors to look around the demo scene."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

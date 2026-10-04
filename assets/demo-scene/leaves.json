@@ -1,0 +1,73 @@
+{
+  "image": "panorama.jpg",
+  "width": 3584,
+  "wrapMargin": 512,
+  "height": 1024,
+  "note": "x/y are leaf centres as a fraction of width (one full turn, excluding the wrap margin) and height.",
+  "leaves": [
+    {
+      "class": "rust",
+      "source": "rust_1.jpg",
+      "x": 0.0625,
+      "y": 0.50733,
+      "widthPx": 304,
+      "heightPx": 143
+    },
+    {
+      "class": "healthy",
+      "source": "healthy_1.jpg",
+      "x": 0.1875,
+      "y": 0.50235,
+      "widthPx": 322,
+      "heightPx": 206
+    },
+    {
+      "class": "phoma",
+      "source": "phoma_1.jpg",
+      "x": 0.3125,
+      "y": 0.50581,
+      "widthPx": 318,
+      "heightPx": 179
+    },
+    {
+      "class": "miner",
+      "source": "miner_1.jpg",
+      "x": 0.4375,
+      "y": 0.48159,
+      "widthPx": 316,
+      "heightPx": 163
+    },
+    {
+      "class": "healthy",
+      "source": "healthy_2.jpg",
+      "x": 0.5625,
+      "y": 0.47746,
+      "widthPx": 318,
+      "heightPx": 173
+    },
+    {
+      "class": "cercospora",
+      "source": "cercospora_1.jpg",
+      "x": 0.6875,
+      "y": 0.52508,
+      "widthPx": 320,
+      "heightPx": 180
+    },
+    {
+      "class": "rust",
+      "source": "rust_2.jpg",
+      "x": 0.8125,
+      "y": 0.50336,
+      "widthPx": 316,
+      "heightPx": 173
+    },
+    {
+      "class": "healthy",
+      "source": "healthy_3.jpg",
+      "x": 0.9375,
+      "y": 0.51865,
+      "widthPx": 308,
+      "heightPx": 146
+    }
+  ]
+}

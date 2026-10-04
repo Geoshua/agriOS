@@ -137,6 +137,17 @@ export function Globe({ size = 16, color = '#000' }: IconProps) {
   );
 }
 
+/** "Look around" — a leaf inside a 360° turn arrow (demo scene). */
+export function LookAround({ size = 22, color = '#fff' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color, 2.2)}>
+      <Path d="M8.5 18.6C5 17.8 2.5 16 2.5 14c0-2.9 4.3-5.2 9.5-5.2s9.5 2.3 9.5 5.2c0 1.9-1.9 3.5-4.8 4.4" />
+      <Path d="m14.5 16.2 2.4 2.4-2.6 2.2" />
+      <Path d="M12 13.5c-2.2-1.6-2.4-5.6 2.6-8.2.6 3.9-.6 7-2.6 8.2Z" fill={color} />
+    </Svg>
+  );
+}
+
 export function Speaker({ size = 20, color = '#000' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color, 2)}>
