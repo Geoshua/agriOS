@@ -22,7 +22,6 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000' } }}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="settings" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack>
     </GestureHandlerRootView>
   );

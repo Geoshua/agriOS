@@ -297,13 +297,3 @@ export function PinGlyph({ kind, size = 18 }: { kind: 'alert' | 'warning' | 'inf
     </Svg>
   );
 }
-
-export function Gear({ size = 22, color = '#000' }: IconProps) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color, 2)}>
-      <Circle cx={12} cy={12} r={3.2} />
-      <Path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" />
-      <Circle cx={12} cy={12} r={6.6} />
-    </Svg>
-  );
-}

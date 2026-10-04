@@ -209,8 +209,6 @@ export function HealthLegend() {
 
 /** Regional aggregate from the hub/cloud `/heatmap` (GPS anonymised to ~10 km). */
 export interface HeatmapRegion {
-  /** Village / area name, when the source knows it. */
-  name?: string;
   lat: number;
   lng: number;
   dominant: string;
