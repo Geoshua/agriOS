@@ -76,8 +76,12 @@ export default function ScanScreen() {
     return () => { active = false; clearInterval(timer); };
   }, [setLastKnownLocation]);
 
+  // True while a gallery photo is being classified: the live loop must neither
+  // run nor overwrite that result (it used to, ~1 s later, with a camera frame).
+  const photoTestRef = useRef(false);
+
   const runScan = useCallback(async () => {
-    if (isRunningRef.current || !cameraRef.current) return;
+    if (isRunningRef.current || photoTestRef.current || !cameraRef.current) return;
     isRunningRef.current = true;
     try {
       const photo = await cameraRef.current.takePictureAsync({
@@ -88,6 +92,7 @@ export default function ScanScreen() {
       if (!photo) return;
       // Pass cached GPS so the hub can anonymise and queue the scan for /heatmap.
       const result = await runInference(photo.uri, lastLocationRef.current ?? undefined);
+      if (photoTestRef.current) return; // a photo test started meanwhile — keep its result
       setLastFrameUri(photo.uri);
       setCurrentDetection({ result, timestamp: Date.now() });
     } catch (_) {
@@ -108,10 +113,13 @@ export default function ScanScreen() {
   const spots = currentDetection?.result.spots ?? [];
   const { state: captureState, last: lastCapture, capture } = useManualCapture(cameraRef, isRunningRef);
   const { state: logState, plantName: loggedPlant, log: logIssue } = useLogIssue(disease, confidence, `${disease?.id}-${activeBlock}`);
-  // Mock results (Expo Go, or the model failed to load) are labelled and never logged.
+  // Mock results (Expo Go, or the model failed to load) are labelled and never
+  // logged; neither are "no leaf found" prompts (not a diagnosis). A leaf
+  // problem agriOS can't name ('other_disease') can be logged for an officer.
   const isDemo = !!currentDetection?.result.isMock;
+  const loggable = !isDemo && disease?.id !== 'no_leaf';
   const log = (notes?: string) => {
-    if (!isDemo) logIssue(notes);
+    if (loggable) logIssue(notes);
   };
 
   function openDetails() {
@@ -124,13 +132,16 @@ export default function ScanScreen() {
   // "Test a photo": classify a gallery image with the same pipeline and show it.
   // Opening the sheet pauses the live loop so the camera doesn't overwrite it.
   async function testPhoto(uri: string) {
-    const result = await runInference(uri);
-    setCurrentDetection({ result, timestamp: Date.now() });
-    const picked = getDisease(result.diseaseId);
-    if (picked) {
+    photoTestRef.current = true;
+    try {
+      const result = await runInference(uri);
+      console.log(`[photo-test] source=${result.source} id=${result.diseaseId} confidence=${result.confidence.toFixed(3)}`);
+      setCurrentDetection({ result, timestamp: Date.now() });
       if (scanMode !== 'details') liveMode.current = scanMode;
-      setScanMode('details');
+      setScanMode('details'); // pauses the live loop while the result is shown
       setDetent('medium');
+    } finally {
+      photoTestRef.current = false;
     }
   }
 

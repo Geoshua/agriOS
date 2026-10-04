@@ -186,6 +186,7 @@ async function runHFInference(frameUri: string): Promise<InferenceResult | null>
 
 // ── TIER 3: Mock cycling ──────────────────────────────────────────────────────
 
+// Never includes 'other_disease' / 'no_leaf' — those only come from a real model.
 const MOCK_DISTRIBUTION: Record<string, number> = {
   coffee_leaf_rust: 0.30,
   coffee_leaf_miner: 0.20,

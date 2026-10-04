@@ -17,8 +17,14 @@ Output:
   <out>/train/<class>/   original training photos + N composites each   (SYNTHETIC composites)
   <out>/val/<class>/     untouched held-out originals
 
+With --other-src, also builds an "other" class ("not a coffee leaf"; the app
+shows it as unknown): leaves of other crops (e.g. PlantVillage, CC BY-SA), as-is
+and composited, plus empty scenes with no leaf. Without it the model must call
+every leaf one of the five coffee classes — measured: 33% of non-coffee
+leaves got a confident coffee diagnosis.
+
 Usage:
-  python make_composites.py --src ~/bracol_small --out ~/bracol_split --per-image 3
+  python make_composites.py --src ~/bracol_small --out ~/bracol_split --per-image 3       [--other-src ~/plantvillage_other --empty-scenes 400]
 """
 
 import argparse
@@ -130,6 +136,8 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--per-image", type=int, default=3)
     ap.add_argument("--val-split", type=float, default=0.2)
+    ap.add_argument("--other-src", default=None, help="Folder of non-coffee leaf photos for an 'other' class")
+    ap.add_argument("--empty-scenes", type=int, default=400, help="Leaf-free background images added to 'other'")
     ap.add_argument("--preview", type=int, default=0, help="Only write N composites to <out>/preview and stop")
     args = ap.parse_args()
     src, out = Path(args.src).expanduser(), Path(args.out).expanduser()
@@ -166,6 +174,31 @@ def main():
                 composite(im, m, rng).save(out / "train" / cdir.name / f"syn{k}_{p.stem}.jpg", quality=95)
                 made += 1
         stats[cdir.name] = {"val": n_val, "train_orig": len(files) - n_val, "synthetic": made}
+
+    if args.other_src:
+        files = sorted(Path(args.other_src).expanduser().glob("*.jpg"))
+        rng.shuffle(files)
+        n_val = int(len(files) * 0.15)
+        (out / "val" / "other").mkdir(parents=True)
+        (out / "train" / "other").mkdir(parents=True)
+        made = 0
+        for i, p in enumerate(files):
+            im = Image.open(p).convert("RGB")
+            im.thumbnail((640, 640))
+            if i < n_val:
+                im.save(out / "val" / "other" / p.name, quality=92)
+                continue
+            im.save(out / "train" / "other" / p.name, quality=92)
+            m = leaf_mask(im)
+            if m.mean() > 0.03:
+                composite(im, m, rng).save(out / "train" / "other" / f"syn_{p.stem}.jpg", quality=95)
+                made += 1
+        for k in range(args.empty_scenes):  # no leaf at all
+            bg = background(600, 800, rng).crop((0, 100, 600, 700)).resize((320, 320))
+            target = out / ("val" if k < args.empty_scenes * 0.15 else "train") / "other" / f"empty_{k}.jpg"
+            bg.save(target, quality=rng.randint(40, 90))
+        stats["other"] = {"val": n_val + int(args.empty_scenes * 0.15), "train_orig": len(files) - n_val,
+                          "synthetic": made, "empty_scenes": args.empty_scenes}
     print(stats)
 
 

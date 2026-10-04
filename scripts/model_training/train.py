@@ -58,6 +58,8 @@ CLASS_MAPPING = {
     "Cercospora":       "coffee_brown_eye",
     "Brown_Eye_Spot":   "coffee_brown_eye",
     "healthy":          "healthy",
+    "other_disease":    "other_disease",  # a leaf problem that isn't one of the 4 coffee diseases
+    "no_leaf":          "no_leaf",        # nothing leaf-like in view
     "Healthy":          "healthy",
 }
 

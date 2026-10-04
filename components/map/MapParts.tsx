@@ -29,8 +29,8 @@ const pinDrop = (delay: number) => () => {
 
 export function Pin({ severity, selected, index }: { severity: string; selected: boolean; index: number }) {
   const styles = useStyles();
-  const size = selected ? 48 : 36;
-  const border = selected ? 4 : 3;
+  const size = selected ? 40 : 30;
+  const border = selected ? 3 : 2.5;
   return (
     <Animated.View entering={pinDrop(index * 40)} style={styles.pinWrap}>
       <View
@@ -45,7 +45,7 @@ export function Pin({ severity, selected, index }: { severity: string; selected:
           },
         ]}
       >
-        <PinGlyph kind={severityGlyph(severity)} size={selected ? 22 : 18} />
+        <PinGlyph kind={severityGlyph(severity)} size={selected ? 19 : 15} />
       </View>
     </Animated.View>
   );
@@ -65,6 +65,24 @@ const BLOCK_COLOR: Record<Scheme, Record<string, string>> = {
   dark: { high: '#FF6961', medium: '#FFB340', low: '#FFD60A', unknown: '#D1D1D6', none: '#63E6BE' },
 };
 
+/** Several nearby scans merged into one bubble: count, coloured by the worst severity. */
+export function ClusterPin({ severity, count }: { severity: string; count: number }) {
+  const styles = useStyles();
+  const size = count >= 20 ? 46 : count >= 8 ? 40 : 34;
+  return (
+    <Animated.View entering={pinDrop(0)} style={styles.pinWrap}>
+      <View
+        style={[
+          styles.pin,
+          { width: size, height: size, borderRadius: size / 2, borderWidth: 3, backgroundColor: severityPin[severity] ?? severityPin.unknown },
+        ]}
+      >
+        <Text style={styles.clusterText}>{count}</Text>
+      </View>
+    </Animated.View>
+  );
+}
+
 export function BlockLabel({ block, worst }: { block: string; worst: string }) {
   const styles = useStyles();
   const { scheme } = useTheme();
@@ -72,7 +90,7 @@ export function BlockLabel({ block, worst }: { block: string; worst: string }) {
   const color = BLOCK_COLOR[scheme][worst] ?? BLOCK_COLOR[scheme].unknown;
   return (
     <Animated.View entering={FadeIn.duration(220)} style={styles.blockLabel}>
-      <Text style={[styles.blockLabelText, { color }]}>
+      <Text style={[styles.blockLabelText, { color }]} numberOfLines={1}>
         {block} · {text}
       </Text>
     </Animated.View>
@@ -209,6 +227,8 @@ export function HealthLegend() {
 
 /** Regional aggregate from the hub/cloud `/heatmap` (GPS anonymised to ~10 km). */
 export interface HeatmapRegion {
+  /** Village / area name, when the source knows it. */
+  name?: string;
   lat: number;
   lng: number;
   dominant: string;
@@ -240,7 +260,9 @@ export function RegionBadge({ region, selected }: { region: HeatmapRegion; selec
   const color = DISEASE_COLOR[region.dominant] ?? DISEASE_COLOR.unknown;
   return (
     <Animated.View entering={pinDrop(0)} style={[styles.regionBadge, { backgroundColor: color }, selected && styles.regionBadgeSelected]}>
-      <Text style={styles.regionBadgeText}>{region.total}</Text>
+      <Text style={styles.regionBadgeText} numberOfLines={1}>
+        {region.total}
+      </Text>
     </Animated.View>
   );
 }
@@ -256,7 +278,10 @@ export function RegionCard({ region, bottom, onClose }: { region: HeatmapRegion;
       <Glass radius={24} highlightHeight="50%" style={styles.regionCard}>
         <View style={styles.regionHead}>
           <View style={[styles.legendDot, { backgroundColor: color }]} />
-          <Text style={styles.popoverTitle}>{DISEASE_LABEL[region.dominant] ?? 'Unknown'}</Text>
+          <Text style={styles.popoverTitle}>
+            {region.name ? `${region.name} · ` : ''}
+            {DISEASE_LABEL[region.dominant] ?? 'Unknown'}
+          </Text>
           <PressableScale onPress={onClose} style={styles.regionClose} accessibilityLabel="Close region details">
             <Close size={14} color={c.labelSecondary} />
           </PressableScale>
@@ -366,7 +391,7 @@ const useStyles = makeStyles((c, g) => ({
     shadowOffset: { width: 0, height: 3 },
     elevation: 4,
   },
-  blockLabel: { paddingVertical: 3, paddingHorizontal: 8, borderRadius: 8, backgroundColor: c.tag },
+  blockLabel: { paddingVertical: 4, paddingHorizontal: 9, borderRadius: 8, backgroundColor: c.tag, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(0,0,0,0.2)' },
   blockLabelText: { fontSize: 13, fontWeight: '700' },
 
   popover: {
@@ -407,16 +432,17 @@ const useStyles = makeStyles((c, g) => ({
   legendRow: { ...StyleSheet.absoluteFill, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6 },
   legendItem: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
   legendDot: { width: 11, height: 11, borderRadius: 6 },
+  clusterText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
   legendDotEdge: { borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(0,0,0,0.25)' },
   legendText: { fontSize: 14, fontWeight: '600', color: c.label },
   legendTextSmall: { fontSize: 13, fontWeight: '600', color: c.label },
   communityLegend: { ...StyleSheet.absoluteFill, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', alignContent: 'center', paddingHorizontal: 14, rowGap: 4 },
   communityItem: { width: '33.3%', flexDirection: 'row', alignItems: 'center', gap: 5 },
   regionBadge: {
-    minWidth: 34,
-    height: 34,
-    paddingHorizontal: 8,
-    borderRadius: 17,
+    minWidth: 44,
+    height: 44,
+    paddingHorizontal: 9,
+    borderRadius: 22,
     borderWidth: 3,
     borderColor: '#FFFFFF',
     alignItems: 'center',
@@ -428,7 +454,7 @@ const useStyles = makeStyles((c, g) => ({
     elevation: 4,
   },
   regionBadgeSelected: { transform: [{ scale: 1.25 }] },
-  regionBadgeText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  regionBadgeText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800', textAlign: 'center' },
   regionCardWrap: { position: 'absolute', left: 20, right: 20 },
   regionCard: { paddingVertical: 12, paddingHorizontal: 16, gap: 3 },
   regionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },

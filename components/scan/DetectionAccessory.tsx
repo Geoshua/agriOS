@@ -39,7 +39,8 @@ interface Props {
   logState: LogState;
   onOpen: () => void;
   onLog: () => void;
-  /** Result came from the mock (no model on this device) — label it, never log it. */
+  /** Result came from the mock (no model on this device) — label it, never log it.
+   *  A 'no_leaf' result is shown as a prompt and is never loggable either. */
   demo?: boolean;
 }
 
@@ -69,31 +70,45 @@ export default function DetectionAccessory({ mode, disease, confidence, logState
     transform: [{ translateY: h.value * (accessoryBottom + ACCESSORY_HEIGHT + tabBottom) }],
   }), [accessoryBottom, miniBottom, tabBottom]);
 
-  const kind = disease ? severityGlyph(disease.severity) : null;
-  const tint = disease ? severityOnDark[disease.severity] ?? severityOnDark.unknown : severityOnDark.unknown;
-  const canLog = !!disease && !demo;
+  // "no_leaf" is a prompt, not a diagnosis: show it like the searching state,
+  // with no percentage, no details sheet and no log-to-map pin.
+  const noLeaf = disease?.id === 'no_leaf';
+  const diagnosis = noLeaf ? null : disease;
+  const kind = diagnosis ? severityGlyph(diagnosis.severity) : null;
+  const tint = diagnosis ? severityOnDark[diagnosis.severity] ?? severityOnDark.unknown : severityOnDark.unknown;
+  const canLog = !!diagnosis && !demo;
   const pct = Math.round(confidence * 100);
+  // "other_disease": a real leaf problem agriOS can't name — point to the officer.
+  const tiny = diagnosis?.id === 'other_disease' ? 'ask officer' : severityTiny[diagnosis?.severity];
 
-  const title = disease
-    ? compact
-      ? shortName(disease.name)
-      : sentenceCase(disease.name)
-    : compact ? 'Find a leaf' : 'Point at a coffee leaf';
-  const subtitle = disease
-    ? demo
-      ? compact ? 'Demo · no model' : 'Demo only · no disease model on this device'
-      : `${pct}% · ${compact ? severityTiny[disease.severity] : severityShort[disease.severity]}`
-    : compact ? 'Scanning…' : 'Hold steady — scanning automatically';
+  const title = noLeaf
+    ? 'No leaf found'
+    : diagnosis
+      ? compact
+        ? shortName(diagnosis.name)
+        : sentenceCase(diagnosis.name)
+      : compact ? 'Find a leaf' : 'Point at a coffee leaf';
+  const subtitle = noLeaf
+    ? compact ? 'Point at one leaf' : 'Point at one leaf, close up'
+    : diagnosis
+      ? demo
+        ? compact ? 'Demo · no model' : 'Demo only · no disease model on this device'
+        : `${pct}% · ${compact ? tiny : severityShort[diagnosis.severity]}`
+      : compact ? 'Scanning…' : 'Hold steady — scanning automatically';
 
   return (
     <Glass radius={29} style={[styles.bar, barStyle]} pointerEvents={hidden ? 'none' : 'auto'}>
       <PressableScale
         pressedScale={0.97}
         onPress={onOpen}
-        disabled={!disease}
+        disabled={!diagnosis}
         style={styles.main}
         accessibilityRole="button"
-        accessibilityLabel={disease ? `${disease.name}, ${pct} percent. Show details` : 'Looking for a leaf'}
+        accessibilityLabel={
+          noLeaf
+            ? 'No leaf found. Point the camera at one leaf'
+            : diagnosis ? `${diagnosis.name}, ${pct} percent. Show details` : 'Looking for a leaf'
+        }
       >
         <Animated.View key={`${disease?.id ?? 'none'}-${compact}`} entering={enter} exiting={exit} style={styles.content}>
           {kind ? (

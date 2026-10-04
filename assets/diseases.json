@@ -67,13 +67,43 @@
       "severity": "none",
       "color": "#38A169",
       "icon": "checkmark-circle",
-      "description": "No disease detected. This plant looks healthy.",
+      "description": "No disease seen. This leaf looks healthy.",
       "immediateAction": "Continue regular monitoring. Check again after rain.",
       "treatment": "Maintain regular fertilization schedule and canopy management.",
       "urgencyDays": null,
       "yieldImpact": null,
       "datasetSource": "PlantVillage",
       "audio": "healthy"
+    },
+    "other_disease": {
+      "id": "other_disease",
+      "name": "Leaf Problem",
+      "scientificName": null,
+      "severity": "unknown",
+      "color": "#718096",
+      "icon": "help-circle",
+      "description": "This leaf has a problem, but it is not a coffee disease agriOS knows.",
+      "immediateAction": "Keep this leaf or a photo of it. We suggest you show it to your extension officer.",
+      "treatment": "No treatment advice. We suggest you do not spray until the problem is known.",
+      "urgencyDays": null,
+      "yieldImpact": null,
+      "datasetSource": null,
+      "audio": "unknown"
+    },
+    "no_leaf": {
+      "id": "no_leaf",
+      "name": "No Leaf Found",
+      "scientificName": null,
+      "severity": "unknown",
+      "color": "#718096",
+      "icon": "help-circle",
+      "description": "agriOS cannot see a leaf in the picture.",
+      "immediateAction": "Point the camera at one leaf, close up, in good daylight.",
+      "treatment": "No advice yet. Try again with one leaf filling the picture.",
+      "urgencyDays": null,
+      "yieldImpact": null,
+      "datasetSource": null,
+      "audio": "unknown"
     },
     "unknown": {
       "id": "unknown",
@@ -97,6 +127,8 @@
     "coffee_phoma",
     "coffee_brown_eye",
     "healthy",
+    "other_disease",
+    "no_leaf",
     "unknown"
   ],
   "confidenceThreshold": 0.6

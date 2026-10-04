@@ -24,6 +24,7 @@ import {
   HealthLegend,
   HeatmapRegion,
   PinsLegend,
+  ClusterPin,
   Pin,
   Popover,
   POPOVER_WIDTH,
@@ -41,9 +42,23 @@ const HEAT_RADIUS: Record<string, number> = { high: 48, medium: 40, low: 32, non
 const HEAT_RINGS: [number, number][] = [[1, 0.16], [0.62, 0.2], [0.3, 0.26]]; // [radius factor, alpha]
 const SEVERITY_RANK: Record<string, number> = { high: 4, medium: 3, low: 2, unknown: 1, none: 0 };
 const MAP_ZOOM = 17;
-const COMMUNITY_ZOOM = 10.5;
-const REGION_RADIUS_M = 6000;
+// The community view re-bases the map at this zoom (see TileMap MIN_SCALE).
+const COMMUNITY_ZOOM = 12;
+/** Pins closer than this on screen merge into one cluster bubble. */
+const CLUSTER_PX = 44;
+/** A village within this distance is 'your community'. */
+const COMMUNITY_RADIUS_KM = 15;
+/** Village area on the community map; small enough that neighbours (~5–8 km apart) stay distinct at COMMUNITY_ZOOM. */
+const REGION_RADIUS_M = 2800;
 const HEATMAP_TIMEOUT_MS = 8000;
+
+function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const rad = Math.PI / 180;
+  const h =
+    Math.sin(((b.lat - a.lat) * rad) / 2) ** 2 +
+    Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(((b.lng - a.lng) * rad) / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
 
 export default function MapScreen() {
   const { width, height } = useWindowDimensions();
@@ -66,6 +81,7 @@ export default function MapScreen() {
     : gpsLocation;
   const issues = demoData?.issues ?? dbIssues;
   const [layer, setLayer] = useState<Layer>('pins');
+  const [zoomLevel, setZoomLevel] = useState(MAP_ZOOM);
   const [selected, setSelected] = useState<{ issue: IssueRecord; x: number; y: number } | null>(null);
   const [soil, setSoil] = useState<SoilProfile | null>(null);
 
@@ -160,6 +176,29 @@ export default function MapScreen() {
   const mapped = useMemo(() => issues.filter((i) => i.lat !== 0 && i.lng !== 0), [issues]);
   const urgent = mapped.filter((i) => i.severity === 'high').length;
 
+  // Merge pins that would overlap at the current zoom into count bubbles.
+  const clusters = useMemo(() => {
+    if (!mapped.length) return [];
+    const lat0 = mapped[0].lat;
+    const metresPerPx = (156543.03 * Math.cos((lat0 * Math.PI) / 180)) / 2 ** zoomLevel;
+    const cellM = CLUSTER_PX * metresPerPx;
+    const mPerDegLat = 111_320;
+    const mPerDegLng = 111_320 * Math.cos((lat0 * Math.PI) / 180);
+    const cells = new Map<string, IssueRecord[]>();
+    for (const i of mapped) {
+      const key = `${Math.floor((i.lat * mPerDegLat) / cellM)}:${Math.floor((i.lng * mPerDegLng) / cellM)}`;
+      const list = cells.get(key);
+      if (list) list.push(i);
+      else cells.set(key, [i]);
+    }
+    return [...cells.values()].map((list) => ({
+      issues: list,
+      lat: list.reduce((a, i) => a + i.lat, 0) / list.length,
+      lng: list.reduce((a, i) => a + i.lng, 0) / list.length,
+      worst: list.reduce((w, i) => ((SEVERITY_RANK[i.severity] ?? 0) > (SEVERITY_RANK[w] ?? 0) ? i.severity : w), 'none'),
+    }));
+  }, [mapped, zoomLevel]);
+
   const blocks = useMemo(() => {
     const groups: Record<string, IssueRecord[]> = {};
     mapped.forEach((i) => i.block && (groups[i.block] ??= []).push(i));
@@ -226,13 +265,23 @@ export default function MapScreen() {
   function selectLayer(next: Layer) {
     setSelected(null);
     setSelectedRegion(null);
-    const focus = location ? { lat: location.coords.latitude, lng: location.coords.longitude } : center;
-    // Zoom out to region scale for the community view, back to the field otherwise.
-    if (focus && (next === 'community') !== (layer === 'community')) {
-      mapRef.current?.recenter(focus, next === 'community' ? COMMUNITY_ZOOM : MAP_ZOOM);
-    }
+    // Switching to/from community re-mounts the map at that view's zoom.
+    if ((next === 'community') !== (layer === 'community')) setZoomLevel(next === 'community' ? COMMUNITY_ZOOM : MAP_ZOOM);
     setLayer(next);
   }
+
+
+  // "Your community": the nearest village within COMMUNITY_RADIUS_KM.
+  const myCommunity = useMemo(() => {
+    if (!location || !regions.length) return null;
+    const me = { lat: location.coords.latitude, lng: location.coords.longitude };
+    let best: { region: HeatmapRegion; km: number } | null = null;
+    for (const region of regions) {
+      const km = distanceKm(me, region);
+      if (!best || km < best.km) best = { region, km };
+    }
+    return best && best.km <= COMMUNITY_RADIUS_KM ? best : null;
+  }, [regions, location?.coords.latitude, location?.coords.longitude]);
 
   const popLeft = selected ? Math.max(16, Math.min(width - POPOVER_WIDTH - 16, selected.x - POPOVER_WIDTH / 2)) : 0;
   const subtitle =
@@ -241,7 +290,8 @@ export default function MapScreen() {
       ? regionsLoading
         ? 'Loading regional data…'
         : regionsMeta && regionsMeta.total > 0
-          ? `${regionsMeta.total} scan${regionsMeta.total === 1 ? '' : 's'} · ${regionsMeta.villages} village${regionsMeta.villages === 1 ? '' : 's'} · GPS ~10 km`
+          ? `${regionsMeta.total} scans · ${regionsMeta.villages} villages · GPS ~10 km` +
+            (myCommunity ? ` · you're in ${myCommunity.region.name ?? 'a community'}` : '')
           : 'No regional data yet'
       : mapped.length
         ? `${mapped.length} pin${mapped.length === 1 ? '' : 's'}${urgent ? ` · ${urgent} urgent` : ''}`
@@ -300,6 +350,29 @@ export default function MapScreen() {
             stroke={withAlpha(DISEASE_COLOR[region.dominant] ?? DISEASE_COLOR.unknown, 0.5)}
           />
         ))}
+        {layer === 'community' && myCommunity && (
+          <MapCircle
+            ctx={ctx}
+            lat={myCommunity.region.lat}
+            lng={myCommunity.region.lng}
+            radiusM={REGION_RADIUS_M * 1.12}
+            fill="transparent"
+            stroke={colors.primary}
+          />
+        )}
+        {layer === 'community' && myCommunity && (
+          <MapMarker ctx={ctx} lat={myCommunity.region.lat} lng={myCommunity.region.lng} zIndex={3}>
+            <View style={styles.communityTagOffset} pointerEvents="none">
+              {/* Opaque pill (not Glass) so it reads over busy map tiles. */}
+              <View style={styles.communityTag}>
+                <View style={styles.communityTagDot} />
+                <Text style={styles.communityTagText} numberOfLines={1}>
+                  Your community · {myCommunity.region.name ?? 'nearby'}
+                </Text>
+              </View>
+            </View>
+          </MapMarker>
+        )}
         {layer === 'community' &&
           regions.map((region, i) => (
             <MapMarker key={`rb${i}`} ctx={ctx} lat={region.lat} lng={region.lng} zIndex={2}>
@@ -307,7 +380,7 @@ export default function MapScreen() {
                 onPress={() => setSelectedRegion(region)}
                 hitSlop={8}
                 accessibilityRole="button"
-                accessibilityLabel={`Region: ${region.total} scans, mostly ${region.dominant}`}
+                accessibilityLabel={`${region.name ?? 'Region'}: ${region.total} scans, mostly ${region.dominant}`}
               >
                 <RegionBadge region={region} selected={selectedRegion === region} />
               </Pressable>
@@ -315,18 +388,36 @@ export default function MapScreen() {
           ))}
       </Animated.View>
 
-      {layer !== 'community' && mapped.map((issue, i) => (
-        <MapMarker key={`p${issue.id}`} ctx={ctx} lat={issue.lat} lng={issue.lng} zIndex={selected?.issue.id === issue.id ? 2 : 1}>
-          <Pressable
-            onPress={() => selectIssue(issue)}
-            hitSlop={6}
-            accessibilityRole="button"
-            accessibilityLabel={`${issue.diseaseName}, ${issue.severity}`}
-          >
-            <Pin severity={issue.severity} selected={selected?.issue.id === issue.id} index={i} />
-          </Pressable>
-        </MapMarker>
-      ))}
+      {/* Pins (Pins view only), merged into clusters where they'd overlap */}
+      {layer === 'pins' &&
+        clusters.map((cl, i) =>
+          cl.issues.length === 1 ? (
+            <MapMarker key={`p${cl.issues[0].id}`} ctx={ctx} lat={cl.lat} lng={cl.lng} zIndex={selected?.issue.id === cl.issues[0].id ? 2 : 1}>
+              <Pressable
+                onPress={() => selectIssue(cl.issues[0])}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`${cl.issues[0].diseaseName}, ${cl.issues[0].severity}`}
+              >
+                <Pin severity={cl.issues[0].severity} selected={selected?.issue.id === cl.issues[0].id} index={i} />
+              </Pressable>
+            </MapMarker>
+          ) : (
+            <MapMarker key={`c${cl.issues[0].id}-${cl.issues.length}`} ctx={ctx} lat={cl.lat} lng={cl.lng} zIndex={1}>
+              <Pressable
+                onPress={() => {
+                  setSelected(null);
+                  mapRef.current?.recenter({ lat: cl.lat, lng: cl.lng }, Math.min(zoomLevel + 2, MAP_ZOOM + 3));
+                }}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={`${cl.issues.length} scans here, worst ${cl.worst}. Zoom in`}
+              >
+                <ClusterPin severity={cl.worst} count={cl.issues.length} />
+              </Pressable>
+            </MapMarker>
+          ),
+        )}
 
       {layer === 'health' &&
         blocks.map((b) => (
@@ -345,9 +436,13 @@ export default function MapScreen() {
       backdrop={
         center ? (
           <TileMap
+            // Community re-mounts the map at its own base zoom: zooming the
+            // field-zoom layer out that far made tiles too big to draw (black map).
+            key={layer === 'community' ? 'community' : 'field'}
             ref={mapRef}
-            center={center}
-            zoom={MAP_ZOOM}
+            center={location ? { lat: location.coords.latitude, lng: location.coords.longitude } : center}
+            zoom={layer === 'community' ? COMMUNITY_ZOOM : MAP_ZOOM}
+            onZoomChange={setZoomLevel}
             dim={scheme === 'dark' ? 0.38 : 0}
             onPanStart={() => setSelected(null)}
             onPress={() => {
@@ -509,4 +604,19 @@ const useStyles = makeStyles((c) => ({
     elevation: 3,
   },
   blockLabelOffset: { transform: [{ translateY: -34 }] },
+  // Badge is 44 high (top at -22); tag sits just above it.
+  communityTagOffset: { transform: [{ translateY: -52 }] },
+  communityTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: c.tag,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  communityTagDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
+  communityTagText: { fontSize: 14, fontWeight: '700', color: c.label },
 }));

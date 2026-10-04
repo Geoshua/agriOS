@@ -60,6 +60,12 @@ export function useManualCapture(cameraRef: RefObject<CameraView | null>, busyRe
       ]);
       setCurrentDetection({ result, timestamp: Date.now() });
 
+      // Never save a demo (mock) result or a frame with no leaf in it.
+      if (result.isMock || result.diseaseId === 'no_leaf') {
+        setState('failed');
+        return;
+      }
+
       const disease = getDisease(result.diseaseId);
       const lat = loc?.coords.latitude ?? 0;
       const lng = loc?.coords.longitude ?? 0;

@@ -135,6 +135,46 @@
         "safety": "Usitumie dawa bila kujua tatizo. Huenda isisaidie na inagharimu pesa.",
         "getHelp": "Kama picha iliyo wazi bado inasema 'sina uhakika', ni vizuri kumwonyesha afisa ugani jani hilo."
       }
+    },
+    "other_disease": {
+      "en": {
+        "summary": "This leaf has a problem, but it is not one of the coffee diseases agriOS knows. We cannot name it.",
+        "doNow": "We suggest you keep this leaf, or a photo of it, to show your extension officer.",
+        "treatment": "We suggest you do not spray anything until the problem is known. The wrong spray may not help.",
+        "prevention": "Keep sick leaves away from other plants until you know more. Check the plants nearby.",
+        "spread": "We cannot say how this spreads until we know what it is. Washing your hands after touching it is a good idea.",
+        "safety": "Do not use a spray without knowing the problem. It may not help and costs money.",
+        "getHelp": "It is a good idea to show this leaf to your extension officer or co-op. They can tell you what it is."
+      },
+      "sw": {
+        "summary": "Jani hili lina tatizo, lakini si ugonjwa wa kahawa ambao agriOS inaujua. Hatuwezi kulitaja.",
+        "doNow": "Tunashauri uhifadhi jani hili, au picha yake, umwonyeshe afisa ugani.",
+        "treatment": "Tunashauri usinyunyizie dawa yoyote hadi tatizo lijulikane. Dawa isiyo sahihi huenda isisaidie.",
+        "prevention": "Weka majani yaliyougua mbali na mimea mingine hadi ujue zaidi. Kagua mimea iliyo karibu.",
+        "spread": "Hatuwezi kusema jinsi linavyoenea hadi tujue ni nini. Ni vizuri kunawa mikono baada ya kuligusa.",
+        "safety": "Usitumie dawa bila kujua tatizo. Huenda isisaidie na inagharimu pesa.",
+        "getHelp": "Ni vizuri kumwonyesha afisa ugani au chama cha ushirika jani hili. Wanaweza kukuambia ni nini."
+      }
+    },
+    "no_leaf": {
+      "en": {
+        "summary": "agriOS cannot see a leaf in the picture, so there is nothing to check yet.",
+        "doNow": "Point the camera at one leaf. Hold it close so the leaf fills the picture.",
+        "treatment": "No advice yet. First let agriOS see one leaf clearly.",
+        "prevention": "For a good check, use daylight, hold the phone still, and show one leaf at a time.",
+        "spread": "We cannot say anything yet. Show agriOS one leaf first.",
+        "safety": "We suggest you do not spray anything based on this scan. No leaf was checked.",
+        "getHelp": "If agriOS still finds no leaf, try again in good daylight. Your extension officer can also help."
+      },
+      "sw": {
+        "summary": "agriOS haioni jani kwenye picha, kwa hiyo hakuna cha kukagua bado.",
+        "doNow": "Elekeza kamera kwenye jani moja. Ishike karibu ili jani lijaze picha.",
+        "treatment": "Hakuna ushauri bado. Kwanza acha agriOS ione jani moja vizuri.",
+        "prevention": "Ili kukagua vizuri, tumia mwanga wa mchana, shika simu bila kutikisa, na onyesha jani moja kwa wakati.",
+        "spread": "Hatuwezi kusema chochote bado. Onyesha agriOS jani moja kwanza.",
+        "safety": "Tunashauri usinyunyizie dawa yoyote kutokana na picha hii. Hakuna jani lililokaguliwa.",
+        "getHelp": "Kama agriOS bado haioni jani, jaribu tena kwenye mwanga mzuri wa mchana. Afisa ugani pia anaweza kusaidia."
+      }
     }
   },
   "general": {

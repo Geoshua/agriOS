@@ -29,7 +29,10 @@ const TILE = 256;
 const HALF = 50_000;
 const MIN_TILE_Z = 3;
 const MAX_TILE_Z = 19;
-const MIN_SCALE = 1 / 256; // ~8 zoom levels out from the base, for the community view
+// At most 3 zoom levels out from the base zoom. Further out, tile views in the
+// (base-zoom) layer get tens of thousands of px wide — Android can't draw them
+// and the map went black. The community view re-bases the map at its own zoom.
+const MIN_SCALE = 1 / 8;
 const MAX_SCALE = 8;
 const TILE_URL = (z: number, x: number, y: number) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
 // OSM tile usage policy asks clients to identify themselves.
@@ -74,12 +77,14 @@ interface Props {
   dim?: number;
   onPanStart?: () => void;
   onPress?: () => void;
+  /** Called when a pan/zoom settles, with the current OSM zoom level. */
+  onZoomChange?: (zoomLevel: number) => void;
   children?: (ctx: MapContext) => React.ReactNode;
 }
 
 type Tile = { key: string; z: number; x: number; y: number; left: number; top: number; size: number };
 
-const TileMap = forwardRef<TileMapHandle, Props>(function TileMap({ center, zoom = 17, dim = 0, onPanStart, onPress, children }, ref) {
+const TileMap = forwardRef<TileMapHandle, Props>(function TileMap({ center, zoom = 17, dim = 0, onPanStart, onPress, onZoomChange, children }, ref) {
   const Z0 = Math.round(zoom);
   const origin = useMemo(() => project(center.lat, center.lng, Z0), []); // fixed for the map's lifetime
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -173,9 +178,11 @@ const TileMap = forwardRef<TileMapHandle, Props>(function TileMap({ center, zoom
       runOnJS(pickTiles)({ x: tx.value, y: ty.value, s: s.value });
     }
   };
+  const reportZoom = (scale: number) => onZoomChange?.(Z0 + Math.log2(scale));
   const finalPick = () => {
     'worklet';
     runOnJS(pickTiles)({ x: tx.value, y: ty.value, s: s.value });
+    runOnJS(reportZoom)(s.value);
   };
 
   // One gesture for drag and pinch, driven by the raw touches.
@@ -331,12 +338,21 @@ const TileMap = forwardRef<TileMapHandle, Props>(function TileMap({ center, zoom
 
 export default TileMap;
 
+/**
+ * Box a marker's children are laid out in, centred on its coordinate. It must
+ * not be zero-sized: Yoga measures Text against the parent's width, so in a
+ * 0×0 box labels collapsed to nothing ("Block A" pills came out blank) or
+ * wrapped one character per line.
+ */
+const MARKER_W = 360;
+const MARKER_H = 200;
+
 /** Places children at a coordinate and keeps them the same size on screen while zooming. */
 export function MapMarker({ ctx, lat, lng, children, zIndex }: { ctx: MapContext; lat: number; lng: number; children: React.ReactNode; zIndex?: number }) {
   const p = ctx.toWorld(lat, lng);
   const style = useAnimatedStyle(() => ({ transform: [{ scale: 1 / ctx.scale.value }] }));
   return (
-    <Animated.View style={[styles.marker, { left: p.x, top: p.y, zIndex }, style]} pointerEvents="box-none">
+    <Animated.View style={[styles.marker, { left: p.x - MARKER_W / 2, top: p.y - MARKER_H / 2, zIndex }, style]} pointerEvents="box-none">
       {children}
     </Animated.View>
   );
@@ -383,5 +399,5 @@ export function MapCircle({
 const styles = StyleSheet.create({
   root: { ...StyleSheet.absoluteFill, overflow: 'hidden' },
   layer: { position: 'absolute', width: HALF * 2, height: HALF * 2 },
-  marker: { position: 'absolute', width: 0, height: 0, alignItems: 'center', justifyContent: 'center' },
+  marker: { position: 'absolute', width: MARKER_W, height: MARKER_H, alignItems: 'center', justifyContent: 'center' },
 });
