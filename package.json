@@ -6,8 +6,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "generate-audio": "node scripts/generate-audio.mjs",
-    "download-model": "node scripts/download-model.mjs"
+    "download-model": "node scripts/download-model.mjs",
+    "build-voice-packs": "python scripts/voice/build_packs.py"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

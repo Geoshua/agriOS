@@ -46,6 +46,13 @@ interface ShambaStore {
   // Last known GPS — updated every 30s, passed to /classify for data contribution
   lastKnownLocation: { lat: number; lng: number } | null;
   setLastKnownLocation: (loc: { lat: number; lng: number } | null) => void;
+
+  // Spoken advisory language (voice pack code). Persisted via lib/settings.ts.
+  voiceLanguage: string;
+  setVoiceLanguage: (code: string) => void;
+  // Bumped when a voice pack is installed/removed so listeners re-read disk.
+  voicePacksVersion: number;
+  bumpVoicePacks: () => void;
 }
 
 export const useShambaStore = create<ShambaStore>((set) => ({
@@ -75,4 +82,9 @@ export const useShambaStore = create<ShambaStore>((set) => ({
 
   lastKnownLocation: null,
   setLastKnownLocation: (loc) => set({ lastKnownLocation: loc }),
+
+  voiceLanguage: 'kik',
+  setVoiceLanguage: (code) => set({ voiceLanguage: code }),
+  voicePacksVersion: 0,
+  bumpVoicePacks: () => set((state) => ({ voicePacksVersion: state.voicePacksVersion + 1 })),
 }));

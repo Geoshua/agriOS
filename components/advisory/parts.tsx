@@ -19,7 +19,8 @@ import PressableScale from '../glass/PressableScale';
 import { Check, MapPin, Pause, Play, StatusDisc } from '../glass/Icons';
 import { colors, makeStyles, severityAction, severityChip, severityGlyph, spring, timing, useTheme } from '../../lib/theme';
 import type { LogState } from '../../lib/useLogIssue';
-import { playAdvisory, stopAll } from '../AudioPlayerFallback';
+import { playAdvisory, scriptFor, stopAll } from '../../lib/voice';
+import { useShambaStore } from '../../lib/store';
 
 // ── Severity chip ─────────────────────────────────────────────────────────────
 
@@ -39,8 +40,7 @@ export function SeverityChip({ severity }: { severity: string }) {
 const BARS = [8, 16, 6, 22, 12, 4, 18, 10, 24, 14, 6, 20, 12, 4, 16, 10, 22, 12, 6, 16, 6, 10, 18, 8];
 const WORDS_PER_SECOND = 2.3;
 
-function estimateSeconds(disease: any) {
-  const text = [disease.name, disease.description, disease.immediateAction, disease.treatment].filter(Boolean).join(' ');
+function estimateSeconds(text: string) {
   return Math.max(4, Math.round(text.split(/\s+/).length / WORDS_PER_SECOND));
 }
 
@@ -54,13 +54,15 @@ export interface Voice {
 
 /**
  * Voice playback for one disease, shared by every VoiceBar in the sheet.
- * Speech has no progress events, so progress is estimated from word count.
+ * Voice-pack clips report their exact length; device speech has no progress
+ * events, so its length is estimated from the spoken script's word count.
  */
 export function useVoice(disease: any | null, active: boolean): Voice {
   const [playing, setPlaying] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const progress = useSharedValue(0);
-  const total = disease ? estimateSeconds(disease) : 0;
+  const voiceLanguage = useShambaStore((s) => s.voiceLanguage);
+  const [total, setTotal] = useState(() => (disease ? estimateSeconds(scriptFor(voiceLanguage, disease.id)) : 0));
   const tick = useRef<ReturnType<typeof setInterval> | null>(null);
   const runId = useRef(0);
 
@@ -77,16 +79,19 @@ export function useVoice(disease: any | null, active: boolean): Voice {
     progress.value = withTiming(0, timing.slow);
   }
 
-  function play() {
+  async function play() {
     if (!disease) return;
     const id = ++runId.current;
     setPlaying(true);
     setElapsed(0);
     progress.value = 0;
-    progress.value = withTiming(1, { duration: total * 1000, easing: Easing.linear });
     stopTicker();
-    tick.current = setInterval(() => setElapsed((e) => Math.min(total, e + 1)), 1000);
-    playAdvisory(disease.id, { onDone: () => runId.current === id && finish() });
+    const info = await playAdvisory(disease.id, { onDone: () => runId.current === id && finish() });
+    if (runId.current !== id) return;
+    const seconds = Math.round(info.durationSec ?? estimateSeconds(scriptFor(info.language, disease.id)));
+    setTotal(seconds);
+    progress.value = withTiming(1, { duration: seconds * 1000, easing: Easing.linear });
+    tick.current = setInterval(() => setElapsed((e) => Math.min(seconds, e + 1)), 1000);
   }
 
   function stop() {
@@ -98,7 +103,7 @@ export function useVoice(disease: any | null, active: boolean): Voice {
   useEffect(() => {
     if (active && disease) play();
     else stop();
-  }, [active, disease?.id]);
+  }, [active, disease?.id, voiceLanguage]);
 
   useEffect(() => () => {
     runId.current++;

@@ -23,7 +23,7 @@
 
 ### 4. Voice-first advisory playback (offline TTS)
 - **What:** Farmer can hear the diagnosis read aloud — critical for low-literacy users
-- **How:** `expo-speech` (on-device, free, 99+ languages); `VoiceBar` component in `components/advisory/parts.tsx`; language configurable in `lib/stt.ts`
+- **How:** downloadable per-language **voice packs** (pre-generated clips: Gĩkũyũ via Meta MMS, English via ElevenLabs) served by the hub over LAN, played offline; `expo-speech` fallback; picked in Settings. See `docs/VOICE.md`
 
 ### 5. Voice input / speech-to-text observations
 - **What:** Farmer can dictate field notes in any language
@@ -83,7 +83,7 @@
 │  ├─ runCloudOffload()  ←── lib/inference.ts                 │
 │  │   POST hub/offload → cloud (35s timeout)                 │
 │  │   on fail → queueOffload()  ←── lib/db.ts (SQLite)      │
-│  ├─ VoiceBar + expo-speech (offline TTS)                    │
+│  ├─ VoiceBar + voice packs / expo-speech (offline)          │
 │  └─ SpeechInput → hub/transcribe → HF Whisper              │
 │                                                             │
 │  lib/db.ts  (expo-sqlite)                                   │
@@ -134,7 +134,7 @@
 | Disease name + severity shown | diseases.json → UI | Yes |
 | "Do This Now" steps | diseases.json → UI | Yes |
 | AI Advisory text | hub /advisory → Ollama | No — silent fallback |
-| Voice playback | expo-speech (on-device TTS) | Yes |
+| Voice playback | Voice packs (downloaded once) → expo-speech | Yes |
 | Voice input (notes) | expo-av → hub /transcribe → HF Whisper | No — text fallback |
 | Log to map | GPS → findNearestPlant → SQLite | Yes |
 | Soil card | hub /soil (cached) → SoilGrids | No — skipped offline |
@@ -156,7 +156,7 @@
 | SQLite queue for offloads | Reliable retry without a message broker; survives app restarts |
 | GPS coarsened to 10km | Anonymisation before contributing data; farmer privacy preserved |
 | Confidence threshold 0.60 | Responsible AI: "unknown" is better than a confident wrong answer |
-| expo-speech (not ElevenLabs) | Free, offline, 99+ languages; no API key required on the phone |
+| Pre-generated voice packs | Offline, natural voices in languages phones lack (Gĩkũyũ); API keys stay off the phone; ~0.7 MB per language |
 
 ---
 

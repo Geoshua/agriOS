@@ -1,0 +1,9 @@
+{
+  "_note": "Spoken advisory scripts, one per disease class. Source text for the English voice pack.",
+  "coffee_leaf_rust": "Coffee leaf rust detected. This fungus spreads fast in wet weather. Act within three days. Cut off the worst branches and burn them — do not compost them. Then spray the remaining leaves with a copper fungicide, and repeat every two weeks through the rains. Left untreated, it can cut your harvest by half.",
+  "coffee_leaf_miner": "Coffee leaf miner detected. Small caterpillars are tunnelling inside the leaves. You have about one week before it spreads. Pick off the damaged leaves and destroy them. Then spray neem early in the morning, and check the trees nearby.",
+  "coffee_phoma": "Phoma leaf spot detected. This fungus often follows cold or rainy weather. Remove the spotted leaves and prune so air can move through the tree. Spray a copper fungicide, and avoid watering from above. Check again in a week, and call your extension officer if it spreads.",
+  "coffee_brown_eye": "Brown eye spot detected. Often the tree is stressed or hungry — usually for nitrogen or potassium. Feed the tree with a balanced fertiliser first. If the spots keep spreading, spray copper. This is less urgent, but fix the feeding soon.",
+  "healthy": "Your tree looks healthy — no disease found. Keep going: check the leaves after rain, keep feeding, and prune when the canopy gets thick. Scan again in a few days.",
+  "unknown": "The picture is not clear enough to be sure. Take a closer photo of one leaf, in good daylight, with the spots showing. If the problem looks serious, ask your extension officer before you spray anything."
+}

@@ -26,6 +26,8 @@ import {
 } from '../lib/stt';
 import { RecordingPresets, useAudioRecorder } from 'expo-audio';
 import { useTheme } from '../lib/theme';
+import { useShambaStore } from '../lib/store';
+import { getPackInfo } from '../lib/voicePacks';
 
 interface SpeechInputProps {
   onTranscript: (text: string) => void;
@@ -33,7 +35,9 @@ interface SpeechInputProps {
 }
 
 export default function SpeechInput({ onTranscript, placeholder = 'Describe what you see…' }: SpeechInputProps) {
-  const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
+  // Start in the recognition language that matches the chosen voice pack (Kikuyu → Swahili).
+  const voiceLanguage = useShambaStore((s) => s.voiceLanguage);
+  const [language, setLanguage] = useState(() => getPackInfo(voiceLanguage)?.sttLanguage ?? DEFAULT_LANGUAGE);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [text, setText] = useState('');

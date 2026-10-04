@@ -4,12 +4,14 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { getAllIssues } from '../lib/db';
 import { seedDemoDataIfEmpty } from '../lib/seed';
+import { loadSettings } from '../lib/settings';
 import { useShambaStore } from '../lib/store';
 
 export default function RootLayout() {
   // First launch: fill an empty database with demo history, then let the
   // map and report (which reload on store changes) pick it up.
   useEffect(() => {
+    loadSettings().then((s) => useShambaStore.getState().setVoiceLanguage(s.voiceLanguage));
     seedDemoDataIfEmpty()
       .then(async (seeded) => {
         if (seeded) useShambaStore.getState().setIssues(await getAllIssues());

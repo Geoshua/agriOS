@@ -1,0 +1,43 @@
+{
+  "code": "kik",
+  "name": "Kikuyu",
+  "nativeName": "Gĩkũyũ",
+  "version": 1791095258,
+  "provider": "mms",
+  "voice": "facebook/mms-tts-kik",
+  "reviewed": false,
+  "synthetic": true,
+  "clips": {
+    "coffee_leaf_rust": {
+      "file": "coffee_leaf_rust.mp3",
+      "bytes": 178460,
+      "durationSec": 29.65
+    },
+    "coffee_leaf_miner": {
+      "file": "coffee_leaf_miner.mp3",
+      "bytes": 98756,
+      "durationSec": 16.36
+    },
+    "coffee_phoma": {
+      "file": "coffee_phoma.mp3",
+      "bytes": 154052,
+      "durationSec": 25.59
+    },
+    "coffee_brown_eye": {
+      "file": "coffee_brown_eye.mp3",
+      "bytes": 115388,
+      "durationSec": 19.14
+    },
+    "healthy": {
+      "file": "healthy.mp3",
+      "bytes": 84932,
+      "durationSec": 14.04
+    },
+    "unknown": {
+      "file": "unknown.mp3",
+      "bytes": 105668,
+      "durationSec": 17.5
+    }
+  },
+  "totalBytes": 737256
+}

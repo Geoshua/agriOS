@@ -137,6 +137,42 @@ export function Globe({ size = 16, color = '#000' }: IconProps) {
   );
 }
 
+export function Speaker({ size = 20, color = '#000' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color, 2)}>
+      <Path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4v-5Z" fill={color} />
+      <Path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
+    </Svg>
+  );
+}
+
+export function Download({ size = 20, color = '#000' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color, 2.4)}>
+      <Path d="M12 4v11M7 10.5l5 5 5-5" />
+      <Path d="M5 19.5h14" />
+    </Svg>
+  );
+}
+
+export function Trash({ size = 18, color = '#000' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color, 2.1)}>
+      <Path d="M4.5 7h15M9.5 7V4.8h5V7M6.5 7l.9 12.2a1.5 1.5 0 0 0 1.5 1.3h6.2a1.5 1.5 0 0 0 1.5-1.3L17.5 7" />
+      <Path d="M10.2 11v6M13.8 11v6" />
+    </Svg>
+  );
+}
+
+export function Gear({ size = 24, color = '#fff' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color, 2)}>
+      <Circle cx={12} cy={12} r={3.2} />
+      <Path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.5-2-3.4-2.3.9a7.6 7.6 0 0 0-2.6-1.5L14.2 2.6h-4l-.4 2.4a7.6 7.6 0 0 0-2.6 1.5l-2.3-.9-2 3.4 2 1.5a7.6 7.6 0 0 0 0 3l-2 1.5 2 3.4 2.3-.9a7.6 7.6 0 0 0 2.6 1.5l.4 2.4h4l.4-2.4a7.6 7.6 0 0 0 2.6-1.5l2.3.9 2-3.4-2-1.5Z" />
+    </Svg>
+  );
+}
+
 export function Locate({ size = 22, color = '#0A84FF' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">

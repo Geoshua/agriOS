@@ -4,7 +4,7 @@
  * Two deployment modes via ROLE env var:
  *
  *   ROLE=hub (default) — runs at the agricultural co-op / community hotspot.
- *     • Serves farmers over LAN: /classify /advisory /transcribe /soil
+ *     • Serves farmers over LAN: /classify /advisory /transcribe /soil /voice-packs
  *     • Queues anonymised scan data; syncs to cloud when internet available
  *     • Offloads low-confidence cases to the cloud's larger model
  *
@@ -30,12 +30,12 @@
  */
 
 import http from 'http';
-import { URL } from 'url';
+import { URL, fileURLToPath } from 'url';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { writeFile, unlink, readFile } from 'fs/promises';
 import { tmpdir, networkInterfaces } from 'os';
-import { join } from 'path';
+import { join, normalize, dirname, extname } from 'path';
 
 const execFileAsync = promisify(execFile);
 
@@ -532,6 +532,35 @@ async function handleSync(req, res) {
   json(res, 200, { flushed, remaining: syncQueue.length });
 }
 
+// ── Voice packs (static) ───────────────────────────────────────────────────────
+// Serves server/voice-packs/<code>/{manifest.json,*.mp3,*.wav} so phones can
+// download a language pack once over the co-op LAN and play it offline.
+// Build packs with: python scripts/voice/build_packs.py
+
+const VOICE_PACK_DIR = join(dirname(fileURLToPath(import.meta.url)), 'voice-packs');
+const VOICE_PACK_TYPES = { '.json': 'application/json', '.mp3': 'audio/mpeg', '.wav': 'audio/wav' };
+
+async function handleVoicePack(req, res, url) {
+  const rel = decodeURIComponent(url.pathname.slice('/voice-packs/'.length));
+  // Only <code>/<file> with a known extension; never escape the pack folder.
+  if (!/^[a-z]{2,3}\/[\w.-]+$/.test(rel)) return json(res, 404, { error: 'not found' });
+  const type = VOICE_PACK_TYPES[extname(rel)];
+  const path = normalize(join(VOICE_PACK_DIR, rel));
+  if (!type || !path.startsWith(VOICE_PACK_DIR)) return json(res, 404, { error: 'not found' });
+  try {
+    const data = await readFile(path);
+    res.writeHead(200, {
+      'Content-Type': type,
+      'Content-Length': data.length,
+      'Cache-Control': 'public, max-age=3600',
+      'Access-Control-Allow-Origin': CORS_ORIGIN,
+    });
+    res.end(data);
+  } catch {
+    json(res, 404, { error: 'voice pack file not found' });
+  }
+}
+
 // ── Router ─────────────────────────────────────────────────────────────────────
 
 const server = http.createServer(async (req, res) => {
@@ -547,6 +576,7 @@ const server = http.createServer(async (req, res) => {
     if (route === 'POST /classify')    return await handleClassify(req, res);
     if (route === 'POST /transcribe')  return await handleTranscribe(req, res);
     if (route === 'GET /soil')         return await handleSoil(req, res, url);
+    if (req.method === 'GET' && url.pathname.startsWith('/voice-packs/')) return await handleVoicePack(req, res, url);
 
     // Hub-only routes
     if (route === 'POST /advisory')    return await handleAdvisory(req, res);

@@ -16,7 +16,7 @@
 The scan → classify → advise loop must complete without any network call. This means:
 - TFLite model is bundled in `assets/model/` (not fetched at runtime)
 - Disease advisory text comes from `assets/diseases.json` (not an API)
-- TTS uses `expo-speech` (on-device, free) as the default; ElevenLabs MP3 clips are an optional enhancement only
+- Spoken advice plays from downloaded **voice packs** (pre-generated clips, offline); `expo-speech` (on-device) is the fallback. See `docs/VOICE.md`
 
 When HF API is unavailable, the TFLite path runs. When TFLite is unavailable, the mock cycles. The app never shows a blank screen or "connect to the internet" error in the scan flow.
 
@@ -24,7 +24,7 @@ When HF API is unavailable, the TFLite path runs. When TFLite is unavailable, th
 Target: `plant_disease.tflite` ≤ 8 MB. Noor may need to receive an update over a shared WhatsApp group at 2G. Use INT8 quantisation. Do not add new model files without justification.
 
 ### 3. One interaction in local language
-TTS via `expo-speech` is the minimum. Language is configurable in `lib/stt.ts → DEFAULT_LANGUAGE`. The default must be set to the likely primary language of deployment (`sw` for Swahili, etc.). Never ship with English as the only option.
+Voice packs (Settings → Voice & Language) with `expo-speech` as fallback. The default spoken language is set in `lib/settings.ts` (currently Gĩkũyũ `kik` for the hackathon); voice-note recognition follows the pack's `sttLanguage` in `assets/voice-packs/catalog.json`. Never ship with English as the only option. Decisions and GPU roadmap: `docs/VOICE.md`.
 
 ### 4. Human in the loop — inform, never act
 The app shows a diagnosis and a recommendation. It **never** automatically orders inputs, contacts an agronomist, or takes any action on Noor's behalf. All logging is user-initiated (the "Log this issue" button). Advisory text ends with a recommendation, not a command.
@@ -74,7 +74,9 @@ Do not claim higher accuracy than what validation set shows. If val accuracy is 
 | BRACOL | Coffee leaf disease (4 classes + healthy) | Yes — baked into TFLite model |
 | assets/diseases.json | Advisory text per disease | Yes — bundled |
 | SoilGrids (ISRIC) | Soil pH + N + clay by GPS coord | No — fetched on demand |
-| HF Whisper large-v3 | STT for 99 languages | No — falls back to text input |
+| HF Whisper large-v3 | STT for 99 languages (no Gĩkũyũ — Swahili used) | No — falls back to text input |
+| Meta MMS-TTS (`mms-tts-kik`, `mms-tts-eng`) | Pretrained voices for voice packs (CC-BY-NC 4.0) | Yes — clips pre-generated |
+| ElevenLabs | English voice-pack clips (build time only) | Yes — clips pre-generated |
 | HF Qwen2-VL-7B | VLM classification (online mode) | No — falls back to TFLite |
 
 ---
@@ -93,7 +95,7 @@ PHONE (offline-first)
 ├── AdvisorySheet (components/advisory/)
 │     ├── fetchAdvisory() → Hub /advisory → Ollama LLM → HF fallback
 │     ├── Static fallback: diseases.json (offline)
-│     ├── TTS via expo-speech (offline)
+│     ├── Voice pack clips (offline) → expo-speech fallback
 │     ├── SpeechInput → Hub /transcribe → HF Whisper
 │     ├── "Ask regional network" button → runCloudOffload() when unknown
 │     └── handleLog → findNearestPlant (5m GPS) → SQLite
@@ -144,6 +146,10 @@ Data flow (when internet available):
 | `lib/useLogIssue.ts`, `lib/plants.ts` | User-initiated logging + GPS plant association (5 m) |
 | `lib/theme.ts`, `components/glass/` | Liquid Glass design system, light/dark palettes, motion tokens |
 | `components/SpeechInput.tsx` | Voice input UI, language picker |
+| `lib/voice.ts`, `lib/voicePacks.ts` | Advisory playback chain; voice-pack download/install |
+| `app/(tabs)/settings.tsx` | Settings: voice & language packs |
+| `scripts/voice/build_packs.py` | Builds voice packs into `server/voice-packs/` |
+| `docs/VOICE.md` | Voice decisions, data honesty, GPU roadmap |
 | `app/(tabs)/scan.tsx` | Camera + 1fps inference loop |
 | `app/(tabs)/map.tsx` | Disease pins + soil card |
 | `app/(tabs)/plants.tsx` | Plant tracking + scan history timeline |

@@ -13,7 +13,7 @@ import type { Tabs } from 'expo-router';
 import Animated, { interpolate, Extrapolation, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import GlassSegmented, { SegmentItem } from './GlassSegmented';
 import PressableScale from './PressableScale';
-import { BarChart, Leaf, MapFold, ScanFrame } from './Icons';
+import { BarChart, Gear, Leaf, MapFold, ScanFrame } from './Icons';
 import { spring, timing, useTheme } from '../../lib/theme';
 import { useShambaStore } from '../../lib/store';
 import { TAB_BAR_HEIGHT, MINI_SIZE, SIDE, useChromeInsets } from '../../lib/layout';
@@ -26,6 +26,7 @@ const TAB_META: Record<string, Omit<SegmentItem, 'key'>> = {
   map: { label: 'Field Map', icon: (c) => <MapFold color={c} /> },
   plants: { label: 'Plants', accessibilityLabel: 'My Plants', icon: (c) => <Leaf size={24} color={c} /> },
   report: { label: 'Report', icon: (c) => <BarChart color={c} /> },
+  settings: { label: 'Settings', icon: (c) => <Gear color={c} /> },
 };
 
 export default function GlassTabBar({ state, navigation }: BottomTabBarProps) {
