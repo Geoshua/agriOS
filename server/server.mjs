@@ -7,11 +7,28 @@
  *     • Serves farmers over LAN: /classify /advisory /transcribe /soil /voice-packs
  *     • Queues anonymised scan data; syncs to cloud when internet available
  *     • Offloads low-confidence cases to the cloud's larger model
+ *     • Collects anonymous treatment outcomes; forwards them to the cloud
  *
  *   ROLE=cloud — runs on a remote VPS or community server.
  *     • Same classify/soil endpoints, larger model timeouts
  *     • Receives village data via POST /ingest
  *     • Exposes GET /heatmap — regional disease map across all villages
+ *     • Aggregates outcome events from all hubs (POST /outcomes, GET /outcome-stats)
+ *
+ * Endpoints:
+ *   GET  /health                 server status
+ *   POST /classify               { image, mimeType?, lat?, lng? } → { diseaseId, confidence, source }
+ *   POST /offload                hub → cloud classify proxy for low-confidence images
+ *   POST /advisory               { diseaseId, confidence, soilPh?, notes?, language? } → { advice }
+ *   POST /history-summary        { subject, health, trend, recurring[], recentScans[], actions[], soilPh? } → { summary }
+ *   POST /transcribe             { audio, language? } → { text }
+ *   GET  /soil?lat=&lng=         SoilGrids properties (disk-cached)
+ *   GET  /voice-packs/<code>/<f> static voice pack files
+ *   POST /outcomes               { events: [{ diseaseId, type, success }], farm? } → { accepted, ignored }
+ *   GET  /outcome-stats          → { stats: { [diseaseId]: { [type]: { success, total } } }, farms, updatedAt, source }
+ *   GET|POST /sync               sync queue status / force flush (hub)
+ *   POST /ingest                 village scan batches (cloud)
+ *   GET  /heatmap                regional disease map
  *
  * Environment variables:
  *   HF_API_KEY    HuggingFace token (classify + transcribe)
@@ -21,6 +38,8 @@
  *   OLLAMA_MODEL  Model name (default: qwen2.5:3b)
  *   PORT          HTTP port (default: 7384)
  *   ROLE          'hub' or 'cloud' (default: hub)
+ *   OUTCOME_STATS_FILE  Outcome aggregate path (default: server/outcome-stats.json)
+ *   SOIL_CACHE_FILE     Soil cache path (default: server/soil-cache.json)
  *
  * Run (hub):
  *   HF_API_KEY=hf_xxx CLOUD_URL=https://agrios.example.com node server.mjs
@@ -35,6 +54,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { writeFile, unlink, readFile } from 'fs/promises';
 import { tmpdir, networkInterfaces } from 'os';
+import { createHash } from 'crypto';
 import { join, normalize, dirname, extname } from 'path';
 
 const execFileAsync = promisify(execFile);
@@ -54,7 +74,7 @@ const SERVER_ID = Math.random().toString(36).slice(2, 10);
 
 const HF_CLASSIFY_URL = 'https://api-inference.huggingface.co/v1/chat/completions';
 const HF_WHISPER_URL  = 'https://api-inference.huggingface.co/models/openai/whisper-large-v3';
-const SOILGRIDS_URL   = 'https://rest.soilgrids.org/query';
+const SOILGRIDS_URL   = 'https://rest.isric.org/soilgrids/v2.0/properties/query'; // v1 rest.soilgrids.org is retired
 const CLASSIFY_MODEL  = 'Qwen/Qwen2-VL-7B-Instruct';
 
 const VALID_DISEASE_IDS = new Set([
@@ -62,11 +82,25 @@ const VALID_DISEASE_IDS = new Set([
 ]);
 
 // ── Soil cache ─────────────────────────────────────────────────────────────────
+// Soil properties are static modelled values, so cache for weeks and persist to
+// disk: after one fetch per area the hub answers soil queries with no internet,
+// even across restarts. Keys are ~110 m buckets.
+const SOIL_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
+const SOIL_CACHE_LIMIT = 2000;              // local area only — not a global mirror
+const SERVER_DIR = dirname(fileURLToPath(import.meta.url));
+const SOIL_CACHE_FILE = process.env.SOIL_CACHE_FILE || join(SERVER_DIR, 'soil-cache.json');
 const soilCache = new Map();
-const SOIL_TTL = 60 * 60 * 1000; // 1 hour
+try {
+  for (const [k, v] of Object.entries(JSON.parse(await readFile(SOIL_CACHE_FILE, 'utf8')))) soilCache.set(k, v);
+} catch { /* first run — no cache yet */ }
 
 function soilKey(lat, lng) {
   return `${lat.toFixed(3)},${lng.toFixed(3)}`;
+}
+
+function saveSoilCache() {
+  while (soilCache.size > SOIL_CACHE_LIMIT) soilCache.delete(soilCache.keys().next().value);
+  writeFile(SOIL_CACHE_FILE, JSON.stringify(Object.fromEntries(soilCache))).catch(() => {});
 }
 
 // ── Data contribution: sync queue ──────────────────────────────────────────────
@@ -122,12 +156,140 @@ if (ROLE === 'hub') {
 const ingestedScans = [];
 const MAX_INGESTED = 50_000;
 
+// ── Outcome learning: anonymous "did the treatment work?" tallies ─────────────
+// Phones POST events { diseaseId, type, success } (no GPS, no photos). We keep
+// only per-disease × per-treatment counters plus a capped set of HASHED farm
+// ids (only to report how many farms contributed). Persisted to
+// OUTCOME_STATS_FILE so tallies survive restarts.
+//
+// Hub → cloud propagation (ROLE=hub with CLOUD_URL set):
+//   • Accepted events are counted locally AND appended to outcomeQueue (in
+//     memory, capped). The queue is flushed to `${CLOUD_URL}/outcomes` right
+//     away (fire-and-forget, 10 s timeout) and retried every minute. Queued,
+//     unsent events are lost on restart (they stay in the local tally).
+//   • GET /outcome-stats asks the cloud for the regional tally (4 s timeout).
+//     A good answer is cached; when the cloud is unreachable the cached answer
+//     is used. Events still waiting in the queue are added on top (the cloud
+//     doesn't have them yet), and events flushed after the cache was taken are
+//     folded into the cache, so nothing is counted twice. With no cloud answer
+//     ever received, the hub's own local tally is returned (source: 'local').
+// Cloud role (or hub without CLOUD_URL): just aggregates and serves its tally.
+
+const OUTCOME_DISEASES = new Set(['coffee_leaf_rust', 'coffee_leaf_miner', 'coffee_phoma', 'coffee_brown_eye']);
+const OUTCOME_TYPES = new Set(['sprayed', 'pruned', 'fertilised', 'removed_leaves']);
+const MAX_OUTCOME_EVENTS = 500;   // per request
+const MAX_FARM_ID_LEN = 64;
+const MAX_FARMS = 10_000;         // distinct-farm counter cap
+const MAX_OUTCOME_QUEUE = 200;    // pending forward batches (hub)
+const OUTCOME_STATS_FILE = process.env.OUTCOME_STATS_FILE || join(SERVER_DIR, 'outcome-stats.json');
+
+/** Strictly parses a stats object from an untrusted source (disk or cloud). */
+function sanitizeStats(stats) {
+  const out = {};
+  if (!stats || typeof stats !== 'object') return out;
+  for (const [d, byType] of Object.entries(stats)) {
+    if (!OUTCOME_DISEASES.has(d) || !byType || typeof byType !== 'object') continue;
+    for (const [t, c] of Object.entries(byType)) {
+      if (!OUTCOME_TYPES.has(t) || !c || typeof c !== 'object') continue;
+      const total = Math.max(0, Math.floor(Number(c.total) || 0));
+      const success = Math.min(total, Math.max(0, Math.floor(Number(c.success) || 0)));
+      if (total > 0) (out[d] ??= {})[t] = { success, total };
+    }
+  }
+  return out;
+}
+
+const outcome = { stats: {}, farms: new Set(), updatedAt: 0 };
+try {
+  const saved = JSON.parse(await readFile(OUTCOME_STATS_FILE, 'utf8'));
+  outcome.stats = sanitizeStats(saved?.stats);
+  if (Array.isArray(saved?.farms)) {
+    for (const f of saved.farms.slice(0, MAX_FARMS)) if (typeof f === 'string') outcome.farms.add(f);
+  }
+  outcome.updatedAt = Number(saved?.updatedAt) || 0;
+} catch { /* first run — no stats yet */ }
+
+let outcomeSaveTimer = null;
+function saveOutcomeStats() {
+  // Debounced so a burst of posts produces one write.
+  if (outcomeSaveTimer) return;
+  outcomeSaveTimer = setTimeout(() => {
+    outcomeSaveTimer = null;
+    const data = { stats: outcome.stats, farms: [...outcome.farms], updatedAt: outcome.updatedAt };
+    writeFile(OUTCOME_STATS_FILE, JSON.stringify(data)).catch(e => console.error('[outcomes] save failed:', e.message));
+  }, 200);
+}
+
+function hashFarm(id) {
+  // Never store the raw id; a hash is enough to count distinct farms.
+  return createHash('sha256').update(`agrios-farm:${id}`).digest('hex').slice(0, 24);
+}
+
+/** Returns only well-formed events, normalised; anything else is dropped. */
+function validOutcomeEvents(events) {
+  const out = [];
+  for (const e of events) {
+    if (!e || typeof e !== 'object') continue;
+    if (!OUTCOME_DISEASES.has(e.diseaseId) || !OUTCOME_TYPES.has(e.type) || typeof e.success !== 'boolean') continue;
+    out.push({ diseaseId: e.diseaseId, type: e.type, success: e.success });
+  }
+  return out;
+}
+
+function addToStats(stats, events) {
+  for (const e of events) {
+    const cell = ((stats[e.diseaseId] ??= {})[e.type] ??= { success: 0, total: 0 });
+    cell.total++;
+    if (e.success) cell.success++;
+  }
+}
+
+// Hub only: batches waiting to be forwarded to the cloud.
+const outcomeQueue = [];        // [{ events, farm? }] — farm is already hashed
+let cloudOutcomeCache = null;   // { stats, farms, updatedAt, fetchedAt }
+let outcomeFlushing = false;
+
+async function flushOutcomeQueue() {
+  if (!CLOUD_URL || outcomeFlushing || outcomeQueue.length === 0) return 0;
+  outcomeFlushing = true;
+  let sent = 0;
+  try {
+    while (outcomeQueue.length) {
+      const batch = outcomeQueue[0];
+      const res = await fetch(`${CLOUD_URL}/outcomes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(batch),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!res.ok) break;
+      outcomeQueue.shift();
+      // The cloud now has these: fold them into the cached regional tally so
+      // the "cache + pending" view neither drops nor double-counts them.
+      if (cloudOutcomeCache) addToStats(cloudOutcomeCache.stats, batch.events);
+      sent += batch.events.length;
+    }
+    if (sent) console.log(`[outcomes] forwarded ${sent} events to cloud`);
+  } catch { /* offline — retry on next tick */ }
+  finally { outcomeFlushing = false; }
+  return sent;
+}
+
+if (ROLE === 'hub' && CLOUD_URL) {
+  setInterval(() => flushOutcomeQueue().catch(() => {}), 60_000);
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function readBody(req) {
+function readBody(req, maxBytes = Infinity) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on('data', c => chunks.push(c));
+    let size = 0;
+    req.on('data', c => {
+      size += c.length;
+      if (size > maxBytes) { chunks.length = 0; reject(new Error('body too large')); return; } // drain, don't buffer
+      chunks.push(c);
+    });
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
     req.on('error', reject);
   });
@@ -253,6 +415,8 @@ async function handleHealth(req, res) {
     ollamaUrl: OLLAMA_URL,
     cloudUrl: CLOUD_URL || null,
     soilCacheEntries: soilCache.size,
+    outcomeFarms: outcome.farms.size,
+    outcomeQueueLength: outcomeQueue.length,
     syncQueueLength: syncQueue.length,
     ingestedTotal: ingestedScans.length,
     uptime: Math.round(process.uptime()),
@@ -383,6 +547,170 @@ async function handleAdvisory(req, res) {
   }
 }
 
+// ── History summary (the LLM explains the numbers; it never decides) ─────────
+
+const SUMMARY_DEADLINE_MS = 30_000;
+
+function cleanText(v, max = 80) {
+  if (typeof v !== 'string') return '';
+  return v.replace(/[\r\n\t]+/g, ' ').replace(/[^\p{L}\p{N}\s.,:;%()/'+_-]/gu, '').trim().slice(0, max);
+}
+
+async function handleHistorySummary(req, res) {
+  // Input: { subject, health, trend, recurring: string[], recentScans: [{date, result}],
+  //          actions: [{date, action}], soilPh? } → { summary, source }
+  let raw;
+  try { raw = await readBody(req, 64 * 1024); } catch { return json(res, 413, { error: 'body too large' }); }
+  let body;
+  try { body = JSON.parse(raw); } catch { return json(res, 400, { error: 'invalid JSON' }); }
+  if (!body || typeof body !== 'object') return json(res, 400, { error: 'object body required' });
+
+  const subject = cleanText(body.subject);
+  if (!subject) return json(res, 400, { error: 'subject required' });
+  const health = cleanText(body.health, 40) || 'not known';
+  const trend = cleanText(body.trend, 40) || 'not known';
+  const recurring = (Array.isArray(body.recurring) ? body.recurring : [])
+    .map(r => cleanText(r, 40)).filter(Boolean).slice(0, 6);
+  const listOf = (arr, key) => (Array.isArray(arr) ? arr : []).slice(0, 12)
+    .filter(x => x && typeof x === 'object')
+    .map(x => [cleanText(x.date, 20), cleanText(x[key], 40)])
+    .filter(([, v]) => v)
+    .map(([d, v]) => (d ? `${d}: ${v}` : v));
+  const scans = listOf(body.recentScans, 'result');
+  const actions = listOf(body.actions, 'action');
+  const ph = Number(body.soilPh);
+  const soilPh = body.soilPh != null && Number.isFinite(ph) && ph > 0 && ph < 14 ? ph : null;
+  const words = s => s.replace(/_/g, ' ');
+
+  const prompt = [
+    `You are helping an agricultural extension officer explain a coffee tree's history to a smallholder farmer.`,
+    ``,
+    `FACTS (use only these):`,
+    `Subject: ${subject}`,
+    `Current health: ${health}`,
+    `Trend: ${trend}`,
+    `Problems that keep coming back: ${recurring.length ? words(recurring.join(', ')) : 'none'}`,
+    `Recent scans: ${scans.length ? words(scans.join('; ')) : 'none'}`,
+    `Actions taken: ${actions.length ? words(actions.join('; ')) : 'none'}`,
+    soilPh != null ? `Soil pH: ${soilPh.toFixed(1)}` : null,
+    ``,
+    `Write a summary of at most 4 short sentences in very simple English. The farmer may have limited literacy.`,
+    `Only use the facts above. Do not invent numbers, dates, diseases or treatments. Do not predict yield or harvest.`,
+    `Do not use Latin names, bullet points or headings.`,
+    `End with one gentle recommendation (for example "It may help to ..."), not a command.`,
+  ].filter(v => v != null).join('\n');
+
+  const deadline = Date.now() + SUMMARY_DEADLINE_MS;
+  const remaining = () => Math.max(1, deadline - Date.now());
+  const finish = text => text.replace(/\s+/g, ' ').trim().slice(0, 800);
+
+  // Try Ollama first (local LLM — no internet needed). A closed port fails fast.
+  try {
+    const ollamaRes = await fetch(`${OLLAMA_URL}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: OLLAMA_MODEL, prompt, stream: false, options: { temperature: 0.2 } }),
+      signal: AbortSignal.timeout(Math.min(remaining(), 25_000)),
+    });
+    if (ollamaRes.ok) {
+      const data = await ollamaRes.json();
+      const summary = data.response?.trim();
+      if (summary) return json(res, 200, { summary: finish(summary), source: 'local-llm', model: OLLAMA_MODEL });
+    }
+  } catch { /* Ollama not running or too slow — fall through to HF */ }
+
+  // Fallback: HF chat completion (internet required), within what's left of the deadline.
+  if (!HF_API_KEY) return json(res, 503, { error: 'no summary backend available — run Ollama or set HF_API_KEY' });
+  if (deadline - Date.now() < 2_000) return json(res, 504, { error: 'summary timed out' });
+
+  try {
+    const hfRes = await fetch(HF_CLASSIFY_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${HF_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: CLASSIFY_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 200,
+        temperature: 0.2,
+      }),
+      signal: AbortSignal.timeout(Math.min(remaining(), 20_000)),
+    });
+    if (!hfRes.ok) return json(res, 502, { error: 'HF summary failed' });
+    const data = await hfRes.json();
+    const summary = data.choices?.[0]?.message?.content?.trim();
+    if (!summary) return json(res, 502, { error: 'empty HF response' });
+    json(res, 200, { summary: finish(summary), source: 'hf' });
+  } catch (e) {
+    json(res, 503, { error: e.message });
+  }
+}
+
+// ── Outcome endpoints ──────────────────────────────────────────────────────────
+
+async function handleOutcomes(req, res) {
+  // Input: { events: [{ diseaseId, type, success }], farm? } → { accepted, ignored }
+  let raw;
+  try { raw = await readBody(req, 256 * 1024); } catch { return json(res, 413, { error: 'body too large' }); }
+  let body;
+  try { body = JSON.parse(raw); } catch { return json(res, 400, { error: 'invalid JSON' }); }
+  if (!body || typeof body !== 'object' || !Array.isArray(body.events)) {
+    return json(res, 400, { error: 'events array required' });
+  }
+  if (body.events.length > MAX_OUTCOME_EVENTS) {
+    return json(res, 400, { error: `max ${MAX_OUTCOME_EVENTS} events per request` });
+  }
+  if (body.farm != null && (typeof body.farm !== 'string' || !body.farm || body.farm.length > MAX_FARM_ID_LEN)) {
+    return json(res, 400, { error: `farm must be a string of 1-${MAX_FARM_ID_LEN} characters` });
+  }
+
+  const events = validOutcomeEvents(body.events);
+  const ignored = body.events.length - events.length;
+  if (events.length) {
+    addToStats(outcome.stats, events);
+    const farm = body.farm ? hashFarm(body.farm) : null;
+    if (farm && outcome.farms.size < MAX_FARMS) outcome.farms.add(farm);
+    outcome.updatedAt = Date.now();
+    saveOutcomeStats();
+
+    if (ROLE === 'hub' && CLOUD_URL) {
+      if (outcomeQueue.length >= MAX_OUTCOME_QUEUE) outcomeQueue.shift();
+      outcomeQueue.push(farm ? { events, farm } : { events });
+      flushOutcomeQueue().catch(() => {}); // fire-and-forget
+    }
+  }
+  json(res, 200, { accepted: events.length, ignored });
+}
+
+async function handleOutcomeStats(req, res) {
+  const local = { stats: outcome.stats, farms: outcome.farms.size, updatedAt: outcome.updatedAt, source: 'local' };
+  if (ROLE !== 'hub' || !CLOUD_URL) return json(res, 200, local);
+
+  try {
+    const cloudRes = await fetch(`${CLOUD_URL}/outcome-stats`, { signal: AbortSignal.timeout(4_000) });
+    if (cloudRes.ok) {
+      const data = await cloudRes.json();
+      cloudOutcomeCache = {
+        stats: sanitizeStats(data?.stats),
+        farms: Math.max(0, Math.floor(Number(data?.farms) || 0)),
+        updatedAt: Number(data?.updatedAt) || Date.now(),
+        fetchedAt: Date.now(),
+      };
+    }
+  } catch { /* cloud unreachable — use the cached answer */ }
+
+  if (!cloudOutcomeCache) return json(res, 200, local);
+
+  const merged = sanitizeStats(cloudOutcomeCache.stats); // deep copy
+  for (const batch of outcomeQueue) addToStats(merged, batch.events);
+  json(res, 200, {
+    stats: merged,
+    // Hub and cloud farm sets overlap; max() never over-reports.
+    farms: Math.max(cloudOutcomeCache.farms, outcome.farms.size),
+    updatedAt: Math.max(cloudOutcomeCache.updatedAt, outcome.updatedAt),
+    source: Date.now() - cloudOutcomeCache.fetchedAt < 5_000 ? 'cloud' : 'cloud-cached',
+  });
+}
+
 async function handleTranscribe(req, res) {
   let body;
   try { body = JSON.parse(await readBody(req)); } catch { return json(res, 400, { error: 'invalid JSON' }); }
@@ -425,10 +753,9 @@ async function handleSoil(req, res, url) {
     return json(res, 200, { ...cached.data, cached: true });
   }
 
-  const params = new URLSearchParams({
-    lon: String(lng), lat: String(lat),
-    property: 'phh2o,nitrogen,soc,clay', depth: '0-5cm', value: 'mean',
-  });
+  // v2 needs one `property=` per property (a comma list returns HTTP 500).
+  const params = new URLSearchParams({ lon: String(lng), lat: String(lat), depth: '0-5cm', value: 'mean' });
+  for (const p of ['phh2o', 'nitrogen', 'soc', 'clay']) params.append('property', p);
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), 8_000);
   try {
@@ -447,7 +774,7 @@ async function handleSoil(req, res, url) {
     }
 
     const rawPh = extractMean('phh2o');
-    if (rawPh === null) return json(res, 502, { error: 'SoilGrids returned no pH data' });
+    if (!rawPh) return json(res, 502, { error: 'SoilGrids returned no pH data (masked area?)' });
 
     const data = {
       ph: rawPh / 10,
@@ -459,6 +786,7 @@ async function handleSoil(req, res, url) {
     };
 
     soilCache.set(key, { data, expiresAt: Date.now() + SOIL_TTL });
+    saveSoilCache();
     json(res, 200, { ...data, cached: false });
   } catch (e) {
     clearTimeout(t);
@@ -581,11 +909,16 @@ const server = http.createServer(async (req, res) => {
     // Hub-only routes
     if (route === 'POST /advisory')    return await handleAdvisory(req, res);
     if (route === 'POST /offload')     return await handleOffload(req, res);
+    if (route === 'POST /history-summary') return await handleHistorySummary(req, res);
     if (route === 'GET /sync')         return await handleSync(req, res);
     if (route === 'POST /sync')        return await handleSync(req, res);
 
     // Cloud-only routes
     if (route === 'POST /ingest')      return await handleIngest(req, res);
+
+    // All roles: outcome learning (hub counts + forwards to cloud; cloud aggregates)
+    if (route === 'POST /outcomes')       return await handleOutcomes(req, res);
+    if (route === 'GET /outcome-stats')   return await handleOutcomeStats(req, res);
 
     // All roles: heatmap (hub returns its local queue; cloud returns all ingested data)
     if (route === 'GET /heatmap')      return await handleHeatmap(req, res);

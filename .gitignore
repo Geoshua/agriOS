@@ -17,3 +17,6 @@ android/
 ios/
 __pycache__/
 .claude/worktrees/
+# Hub runtime data
+server/soil-cache.json
+server/outcome-stats.json

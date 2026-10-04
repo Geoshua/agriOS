@@ -20,3 +20,12 @@ export const CLOUD_SERVER_URL = ''; // e.g. 'https://agrios.example.com'
  * the hub only.
  */
 export const VOICE_PACK_BASE_URL = 'https://raw.githubusercontent.com/Geoshua/agriOS/main/server/voice-packs';
+
+/**
+ * Demo mode: the whole app behaves as if the phone stands on Noor's farm in
+ * Kiambu, Central Kenya — seeded history, the map, newly logged scans and soil
+ * data all use DEMO_FARM instead of real GPS. Turn off for field use.
+ * Keep DEMO_FARM in sync with scripts/soil/build_local_grid.py.
+ */
+export const DEMO_MODE = true;
+export const DEMO_FARM = { lat: -1.1714, lng: 36.8356, name: 'Kiambu demo farm' };

@@ -10,7 +10,7 @@ import { useShambaStore } from '../../lib/store';
 import { colors, heat, makeStyles, severityPin, spring, timing, useTheme } from '../../lib/theme';
 import { withAlpha } from '../../lib/useTween';
 import { SIDE, useChromeInsets } from '../../lib/layout';
-import { LOCAL_SERVER_URL } from '../../lib/config';
+import { DEMO_FARM, DEMO_MODE, LOCAL_SERVER_URL } from '../../lib/config';
 import ScreenTransition from '../../components/glass/ScreenTransition';
 import Glass from '../../components/glass/Glass';
 import GlassSegmented from '../../components/glass/GlassSegmented';
@@ -92,6 +92,16 @@ export default function MapScreen() {
   const [selectedRegion, setSelectedRegion] = useState<HeatmapRegion | null>(null);
 
   useEffect(() => {
+    if (DEMO_MODE) {
+      // Demo: the farmer is standing on the Kiambu demo farm.
+      setLocation({
+        timestamp: Date.now(),
+        mocked: true,
+        coords: { latitude: DEMO_FARM.lat, longitude: DEMO_FARM.lng, altitude: null, accuracy: 5, altitudeAccuracy: null, heading: null, speed: null },
+      });
+      setLocating(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();

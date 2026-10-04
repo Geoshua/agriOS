@@ -1,261 +1,302 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  Pressable,
-  TextInput,
-  Alert,
-} from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Href, router, useFocusEffect } from 'expo-router';
+import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { getAllPlants, getIssuesByPlant, renamePatient, PlantRecord, IssueRecord } from '../../lib/db';
-import { useShambaStore } from '../../lib/store';
+import { getAllActions, getAllIssues, getAllPlants, PlantRecord } from '../../lib/db';
+import { computeInsight, HealthLevel, Insight, Suggestion, Trend } from '../../lib/insights';
+import { loadRegionalStats, localOutcomeStats } from '../../lib/outcomes';
+import { plantLabel } from '../../lib/plants';
+import { FIELD_BLOCKS, useShambaStore } from '../../lib/store';
+import { makeStyles, useTheme } from '../../lib/theme';
 import { useChromeInsets } from '../../lib/layout';
+import ScreenTransition from '../../components/glass/ScreenTransition';
+import PressableScale from '../../components/glass/PressableScale';
+import { Leaf } from '../../components/glass/Icons';
+import { CONFIDENCE_WORD, HealthRing, LEVEL_COLOR, LEVEL_WORD, TREND_WORD } from '../../components/insights/Visuals';
+import TasksSummary from '../../components/tasks/TasksSummary';
 
-const SEVERITY_COLOR: Record<string, string> = {
-  high: '#E53E3E',
-  medium: '#DD6B20',
-  low: '#D69E2E',
-  none: '#38A169',
-  unknown: '#718096',
+const layoutTransition = LinearTransition.springify().damping(24).stiffness(220);
+const enter = (i: number) => FadeInDown.duration(360).delay(60 + i * 60);
+
+const URGENCY_COLOR: Record<Suggestion['urgency'], string> = { now: '#D70015', soon: '#D86A00', routine: '#248A3D' };
+const LEVEL_RANK: Record<HealthLevel, number> = { sick: 0, watch: 1, good: 2, unknown: 3 };
+const TREND_ICON: Record<Trend, { name: keyof typeof Ionicons.glyphMap; color: string }> = {
+  improving: { name: 'trending-up', color: '#248A3D' },
+  worsening: { name: 'trending-down', color: '#D70015' },
+  stable: { name: 'remove', color: '#8E8E93' },
+  new: { name: 'sparkles-outline', color: '#8E8E93' },
 };
 
-type Trend = 'improving' | 'worsening' | 'stable' | 'new';
-
-const SEVERITY_RANK: Record<string, number> = { high: 3, medium: 2, low: 1, none: 0, unknown: -1 };
-
-function getTrend(scans: IssueRecord[]): Trend {
-  if (scans.length < 2) return 'new';
-  const latest = SEVERITY_RANK[scans[scans.length - 1].severity] ?? -1;
-  const prev = SEVERITY_RANK[scans[scans.length - 2].severity] ?? -1;
-  if (latest < prev) return 'improving';
-  if (latest > prev) return 'worsening';
-  return 'stable';
+interface BlockRow {
+  block: string;
+  insight: Insight;
+}
+interface TreeRow {
+  plant: PlantRecord;
+  label: string;
+  insight: Insight;
 }
 
-const TREND_ICON: Record<Trend, { name: string; color: string; label: string }> = {
-  improving:  { name: 'trending-up',   color: '#38A169', label: 'Improving' },
-  worsening:  { name: 'trending-down', color: '#E53E3E', label: 'Worsening' },
-  stable:     { name: 'remove',        color: '#D69E2E', label: 'Stable' },
-  new:        { name: 'leaf',          color: '#2D6A4F', label: 'New plant' },
-};
+/** Loads everything once and runs the insight engine per block and per tree (no soil lookups — list view only). */
+async function loadOverview(): Promise<{ blocks: BlockRow[]; trees: TreeRow[] }> {
+  const [allScans, allActions, plants, regional] = await Promise.all([getAllIssues(), getAllActions(), getAllPlants(), loadRegionalStats()]);
+  const chrono = [...allScans].sort((a, b) => a.timestamp - b.timestamp);
+  const localStats = localOutcomeStats(chrono, allActions);
+  const regionalStats = regional?.stats;
+  const now = Date.now();
+  const scansIn = (block: string | null) => (block ? chrono.filter((s) => s.block === block) : []);
 
-interface PlantWithScans {
-  plant: PlantRecord;
-  scans: IssueRecord[];
-  trend: Trend;
+  const blocks = FIELD_BLOCKS.map((block) => {
+    const scans = scansIn(block);
+    return {
+      block,
+      insight: computeInsight({
+        kind: 'block',
+        scans,
+        actions: allActions.filter((a) => a.block === block),
+        blockScans: scans,
+        localStats,
+        regionalStats,
+        now,
+      }),
+    };
+  });
+
+  const trees = plants
+    .map((plant) => ({
+      plant,
+      label: plantLabel(plant),
+      insight: computeInsight({
+        scans: chrono.filter((s) => s.plantId === plant.id),
+        actions: allActions.filter((a) => a.plantId === plant.id),
+        blockScans: scansIn(plant.block),
+        plantId: plant.id,
+        localStats,
+        regionalStats,
+        now,
+      }),
+    }))
+    .sort((a, b) => {
+      const byLevel = LEVEL_RANK[a.insight.health.level] - LEVEL_RANK[b.insight.health.level];
+      if (byLevel) return byLevel;
+      const byScore = (a.insight.health.score ?? 101) - (b.insight.health.score ?? 101);
+      if (byScore) return byScore;
+      return (a.plant.tag ?? Infinity) - (b.plant.tag ?? Infinity) || a.plant.id - b.plant.id;
+    });
+
+  return { blocks, trees };
 }
 
 export default function PlantsScreen() {
-  const { tabClearance } = useChromeInsets();
-  const [data, setData] = useState<PlantWithScans[]>([]);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [renamingId, setRenamingId] = useState<number | null>(null);
-  const [renameText, setRenameText] = useState('');
-  const storePlants = useShambaStore(s => s.plants);
-  const setStorePlants = useShambaStore(s => s.setPlants);
+  const { top, tabClearance } = useChromeInsets();
+  const { c } = useTheme();
+  const styles = useStyles();
+  const dataVersion = useShambaStore((s) => s.dataVersion);
+  const [blocks, setBlocks] = useState<BlockRow[]>([]);
+  const [trees, setTrees] = useState<TreeRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    const plants = await getAllPlants();
-    setStorePlants(plants);
-    const loaded: PlantWithScans[] = await Promise.all(
-      plants.map(async plant => {
-        const scans = await getIssuesByPlant(plant.id);
-        return { plant, scans, trend: getTrend(scans) };
-      })
-    );
-    setData(loaded);
+    try {
+      const data = await loadOverview();
+      setBlocks(data.blocks);
+      setTrees(data.trees);
+    } catch {}
+    setLoaded(true);
   }, []);
 
-  useEffect(() => { load(); }, [load, storePlants.length]);
-
-  async function handleRename(plantId: number) {
-    const trimmed = renameText.trim();
-    if (!trimmed) return;
-    await renamePatient(plantId, trimmed);
-    setRenamingId(null);
-    setRenameText('');
+  useEffect(() => {
     load();
+  }, [dataVersion, load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
   }
 
-  function renderScan(scan: IssueRecord, idx: number, total: number) {
-    const isLast = idx === total - 1;
-    const date = new Date(scan.timestamp);
-    const dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    const timeStr = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-    const color = SEVERITY_COLOR[scan.severity] ?? '#718096';
-
-    return (
-      <View key={scan.id} style={styles.timelineRow}>
-        <View style={styles.timelineLeft}>
-          <View style={[styles.timelineDot, { backgroundColor: color }]} />
-          {!isLast && <View style={styles.timelineLine} />}
-        </View>
-        <View style={styles.timelineContent}>
-          <View style={styles.timelineHeader}>
-            <Text style={styles.timelineDisease}>{scan.diseaseName}</Text>
-            <Text style={styles.timelineConf}>{Math.round(scan.confidence * 100)}%</Text>
-          </View>
-          <Text style={styles.timelineDate}>{dateStr} · {timeStr}</Text>
-          {scan.notes ? (
-            <Text style={styles.timelineNote} numberOfLines={2}>{scan.notes}</Text>
-          ) : null}
-        </View>
-      </View>
-    );
-  }
-
-  function renderPlant({ item }: { item: PlantWithScans }) {
-    const { plant, scans, trend } = item;
-    const isExpanded = expandedId === plant.id;
-    const isRenaming = renamingId === plant.id;
-    const lastScan = scans[scans.length - 1];
-    const trendInfo = TREND_ICON[trend];
-
-    return (
-      <View style={styles.card}>
-        {/* Plant header */}
-        <Pressable style={styles.cardHeader} onPress={() => setExpandedId(isExpanded ? null : plant.id)}>
-          <View style={styles.cardLeft}>
-            <View style={styles.plantIconWrap}>
-              <Ionicons name="leaf" size={20} color="#2D6A4F" />
-            </View>
-            <View style={styles.plantMeta}>
-              {isRenaming ? (
-                <View style={styles.renameRow}>
-                  <TextInput
-                    style={styles.renameInput}
-                    value={renameText}
-                    onChangeText={setRenameText}
-                    autoFocus
-                    returnKeyType="done"
-                    onSubmitEditing={() => handleRename(plant.id)}
-                  />
-                  <Pressable onPress={() => handleRename(plant.id)} style={styles.renameConfirm}>
-                    <Ionicons name="checkmark" size={18} color="#2D6A4F" />
-                  </Pressable>
-                  <Pressable onPress={() => setRenamingId(null)} style={styles.renameConfirm}>
-                    <Ionicons name="close" size={18} color="#9CA3AF" />
-                  </Pressable>
-                </View>
-              ) : (
-                <Pressable
-                  onLongPress={() => { setRenamingId(plant.id); setRenameText(plant.name); }}
-                  delayLongPress={600}
-                >
-                  <Text style={styles.plantName}>{plant.name}</Text>
-                </Pressable>
-              )}
-              <Text style={styles.plantScanCount}>
-                {scans.length} scan{scans.length !== 1 ? 's' : ''}
-                {lastScan ? ` · last ${new Date(lastScan.timestamp).toLocaleDateString()}` : ''}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.cardRight}>
-            {/* Trend indicator */}
-            <View style={styles.trendBadge}>
-              <Ionicons name={trendInfo.name as any} size={14} color={trendInfo.color} />
-              <Text style={[styles.trendLabel, { color: trendInfo.color }]}>{trendInfo.label}</Text>
-            </View>
-            <Ionicons
-              name={isExpanded ? 'chevron-up' : 'chevron-down'}
-              size={16}
-              color="#9CA3AF"
-            />
-          </View>
-        </Pressable>
-
-        {/* Last disease pill */}
-        {lastScan && !isExpanded && (
-          <View style={styles.lastDiseasePill}>
-            <View style={[styles.diseaseDot, { backgroundColor: SEVERITY_COLOR[lastScan.severity] }]} />
-            <Text style={styles.lastDiseaseText}>{lastScan.diseaseName}</Text>
-          </View>
-        )}
-
-        {/* Expanded scan history timeline */}
-        {isExpanded && (
-          <View style={styles.timeline}>
-            {scans.length === 0 ? (
-              <Text style={styles.noScans}>No scans yet</Text>
-            ) : (
-              scans.map((s, i) => renderScan(s, i, scans.length))
-            )}
-          </View>
-        )}
-      </View>
-    );
-  }
+  const subtitle = `${FIELD_BLOCKS.length} blocks · ${trees.length} tagged ${trees.length === 1 ? 'tree' : 'trees'}`;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>My Plants</Text>
-        <Text style={styles.subtitle}>
-          {data.length} tracked · Long-press a name to rename
-        </Text>
-      </View>
+    <ScreenTransition background={c.groundGrouped}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingTop: top + 8, paddingBottom: tabClearance + 40 }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.labelTertiary} />}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View entering={enter(0)} style={styles.header}>
+          <Text style={styles.title} accessibilityRole="header">Plants</Text>
+          <Text style={styles.subtitle}>{subtitle}</Text>
+        </Animated.View>
 
-      {data.length === 0 ? (
-        <View style={styles.empty}>
-          <Ionicons name="leaf-outline" size={56} color="#D1D5DB" />
-          <Text style={styles.emptyTitle}>No plants tracked yet</Text>
-          <Text style={styles.emptyBody}>
-            Scan a leaf and tap "Log to map" — agriOS will automatically group scans from the same plant together.
+        <Animated.View entering={enter(1)} layout={layoutTransition}>
+          <TasksSummary />
+        </Animated.View>
+
+        <Animated.View entering={enter(2)} layout={layoutTransition} style={styles.section}>
+          <Text style={styles.sectionTitle}>Blocks</Text>
+          <View style={styles.grid}>
+            {blocks.map((b, i) => (
+              <Animated.View key={b.block} entering={enter(3 + i)} layout={layoutTransition} style={styles.gridCell}>
+                <BlockCard row={b} />
+              </Animated.View>
+            ))}
+          </View>
+        </Animated.View>
+
+        <Animated.View entering={enter(4)} layout={layoutTransition} style={styles.section}>
+          <Text style={styles.sectionTitle}>Tagged trees</Text>
+          {loaded && trees.length === 0 ? (
+            <Animated.View entering={FadeIn.duration(300)} style={styles.empty}>
+              <View style={styles.emptyArt}>
+                <Leaf size={44} color={c.checkBorder} />
+              </View>
+              <Text style={styles.emptyTitle}>No tagged trees yet.</Text>
+              <Text style={styles.emptyBody}>After you log a scan, tap ‘Tag to a tree’ to start tracking a tree.</Text>
+            </Animated.View>
+          ) : (
+            <View style={styles.group}>
+              {trees.map((t, i) => (
+                <Animated.View key={t.plant.id} entering={enter(5 + Math.min(i, 8))} layout={layoutTransition}>
+                  {i > 0 && <View style={[styles.separator, { marginLeft: 76 }]} />}
+                  <TreeRowView row={t} />
+                </Animated.View>
+              ))}
+            </View>
+          )}
+        </Animated.View>
+      </ScrollView>
+    </ScreenTransition>
+  );
+}
+
+function BlockCard({ row }: { row: BlockRow }) {
+  const styles = useStyles();
+  const { insight, block } = row;
+  const { health } = insight;
+  const top = insight.suggestions[0];
+  return (
+    <PressableScale
+      onPress={() => router.push(`/block/${block}` as Href)}
+      pressedScale={0.96}
+      style={styles.blockCard}
+      accessibilityRole="button"
+      accessibilityLabel={`Block ${block}, ${LEVEL_WORD[health.level]}, ${TREND_WORD[insight.trend]}`}
+    >
+      <View style={styles.blockTop}>
+        <HealthRing health={health} size={56} />
+        <View style={styles.blockHead}>
+          <Text style={styles.blockName}>Block {block}</Text>
+          <Text style={[styles.levelWord, { color: LEVEL_COLOR[health.level] }]} numberOfLines={1}>
+            {LEVEL_WORD[health.level]}
           </Text>
         </View>
-      ) : (
-        <FlatList
-          data={data}
-          keyExtractor={item => String(item.plant.id)}
-          renderItem={renderPlant}
-          // Leave room for the floating glass tab bar.
-          contentContainerStyle={[styles.list, { paddingBottom: tabClearance + 16 }]}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+      </View>
+      {health.scansUsed > 0 && <TrendLine trend={insight.trend} />}
+      <Text style={[styles.blockNext, { color: top ? URGENCY_COLOR[top.urgency] : '#248A3D' }]} numberOfLines={2}>
+        {top ? top.title : 'All good'}
+      </Text>
+      <Text style={styles.meta} numberOfLines={1}>
+        {health.scansUsed > 0 ? `based on ${health.scansUsed} ${health.scansUsed === 1 ? 'scan' : 'scans'}` : 'no scans yet'}
+      </Text>
+    </PressableScale>
+  );
+}
+
+function TreeRowView({ row }: { row: TreeRow }) {
+  const styles = useStyles();
+  const { c } = useTheme();
+  const { insight, plant, label } = row;
+  const { health } = insight;
+  const top = insight.suggestions[0];
+  return (
+    <PressableScale
+      onPress={() => router.push(`/plant/${plant.id}` as Href)}
+      pressedScale={0.98}
+      style={styles.treeRow}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}, ${LEVEL_WORD[health.level]}${top ? `, next: ${top.title}` : ''}`}
+    >
+      <HealthRing health={health} size={44} stroke={5} />
+      <View style={styles.treeText}>
+        <View style={styles.treeTitleRow}>
+          <Text style={styles.treeName} numberOfLines={1}>{label}</Text>
+          {plant.block && (
+            <View style={styles.blockChip}>
+              <Text style={styles.blockChipText}>{plant.block}</Text>
+            </View>
+          )}
+        </View>
+        <Text style={[styles.treeNext, { color: top ? URGENCY_COLOR[top.urgency] : '#248A3D' }]} numberOfLines={1}>
+          {top ? top.title : 'All good'}
+        </Text>
+        <View style={styles.treeMetaRow}>
+          {health.scansUsed > 0 && <TrendLine trend={insight.trend} small />}
+          <Text style={styles.meta} numberOfLines={1}>
+            {health.scansUsed > 0 ? `${CONFIDENCE_WORD[health.confidence]} · ${health.scansUsed} ${health.scansUsed === 1 ? 'scan' : 'scans'}` : CONFIDENCE_WORD.none}
+          </Text>
+        </View>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={c.labelTertiary} />
+    </PressableScale>
+  );
+}
+
+function TrendLine({ trend, small }: { trend: Trend; small?: boolean }) {
+  const styles = useStyles();
+  const icon = TREND_ICON[trend];
+  return (
+    <View style={styles.trend}>
+      <Ionicons name={icon.name} size={small ? 14 : 16} color={icon.color} />
+      <Text style={[small ? styles.trendTextSmall : styles.trendText, { color: icon.color }]}>{TREND_WORD[trend]}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAF9' },
-  header: { paddingTop: 60, paddingBottom: 12, paddingHorizontal: 20, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  title: { fontSize: 22, fontWeight: '700', color: '#111827' },
-  subtitle: { fontSize: 13, color: '#9CA3AF', marginTop: 2 },
-  list: { padding: 16, gap: 12 },
-  card: { backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#E5E7EB' },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14 },
-  cardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  plantIconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F0FDF4', justifyContent: 'center', alignItems: 'center' },
-  plantMeta: { flex: 1 },
-  plantName: { fontSize: 16, fontWeight: '600', color: '#111827' },
-  plantScanCount: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
-  cardRight: { alignItems: 'flex-end', gap: 6 },
-  trendBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  trendLabel: { fontSize: 12, fontWeight: '600' },
-  lastDiseasePill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingBottom: 12 },
-  diseaseDot: { width: 8, height: 8, borderRadius: 4 },
-  lastDiseaseText: { fontSize: 13, color: '#374151' },
-  renameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  renameInput: { flex: 1, borderBottomWidth: 1, borderColor: '#2D6A4F', fontSize: 16, color: '#111827', paddingVertical: 2 },
-  renameConfirm: { padding: 4 },
-  timeline: { paddingHorizontal: 14, paddingBottom: 14 },
-  timelineRow: { flexDirection: 'row', gap: 12 },
-  timelineLeft: { alignItems: 'center', width: 16 },
-  timelineDot: { width: 12, height: 12, borderRadius: 6, marginTop: 4 },
-  timelineLine: { flex: 1, width: 2, backgroundColor: '#E5E7EB', marginVertical: 4 },
-  timelineContent: { flex: 1, paddingBottom: 16 },
-  timelineHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  timelineDisease: { fontSize: 14, fontWeight: '600', color: '#111827' },
-  timelineConf: { fontSize: 12, color: '#9CA3AF' },
-  timelineDate: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
-  timelineNote: { fontSize: 13, color: '#6B7280', marginTop: 4, fontStyle: 'italic' },
-  noScans: { fontSize: 14, color: '#9CA3AF', textAlign: 'center', paddingVertical: 12 },
-  empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40, gap: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '600', color: '#374151', textAlign: 'center' },
-  emptyBody: { fontSize: 14, color: '#9CA3AF', textAlign: 'center', lineHeight: 22 },
-});
+const useStyles = makeStyles((c) => ({
+  content: { paddingHorizontal: 16, gap: 22 },
+  header: { gap: 2, paddingHorizontal: 4 },
+  title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.7, lineHeight: 40, color: c.label },
+  subtitle: { fontSize: 16, fontWeight: '600', color: c.labelSecondary },
+
+  section: { gap: 8 },
+  sectionTitle: { fontSize: 20, fontWeight: '700', paddingHorizontal: 4, color: c.label },
+  group: { borderRadius: 26, backgroundColor: c.card, overflow: 'hidden' },
+  separator: { height: 1, backgroundColor: c.separator },
+
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  gridCell: { flexBasis: '47%', flexGrow: 1 },
+  blockCard: { minHeight: 168, padding: 14, gap: 6, borderRadius: 26, backgroundColor: c.card },
+  blockTop: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 2 },
+  blockHead: { flex: 1, gap: 1 },
+  blockName: { fontSize: 17, fontWeight: '700', color: c.label },
+  levelWord: { fontSize: 15, fontWeight: '700' },
+  blockNext: { fontSize: 15, fontWeight: '600', lineHeight: 20 },
+  meta: { fontSize: 13, color: c.labelTertiary, flexShrink: 1 },
+
+  trend: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  trendText: { fontSize: 14, fontWeight: '600' },
+  trendTextSmall: { fontSize: 13, fontWeight: '600' },
+
+  treeRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 10 },
+  treeText: { flex: 1, gap: 2 },
+  treeTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  treeName: { fontSize: 17, fontWeight: '600', color: c.label, flexShrink: 1 },
+  blockChip: { minWidth: 24, height: 22, paddingHorizontal: 7, borderRadius: 11, backgroundColor: c.numberBadge, alignItems: 'center', justifyContent: 'center' },
+  blockChipText: { fontSize: 13, fontWeight: '700', color: c.labelSecondary },
+  treeNext: { fontSize: 15, fontWeight: '600' },
+  treeMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+
+  empty: { paddingVertical: 28, paddingHorizontal: 24, alignItems: 'center', gap: 6, borderRadius: 26, backgroundColor: c.card },
+  emptyArt: { width: 88, height: 88, borderRadius: 44, backgroundColor: c.groundGrouped, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  emptyTitle: { fontSize: 20, fontWeight: '700', color: c.label },
+  emptyBody: { fontSize: 16, lineHeight: 23, color: c.labelSecondary, textAlign: 'center' },
+}));

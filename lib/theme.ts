@@ -55,6 +55,8 @@ export const palettes = {
     statUrgent: '#A3130B',
     statHealthy: '#17652B',
     gps: '#17652B',
+    /** Green for small text/links (≥4.5:1 on cards). */
+    accentText: '#1E7B3C',
   },
   dark: {
     label: '#FFFFFF',
@@ -80,6 +82,7 @@ export const palettes = {
     statUrgent: '#FF6961',
     statHealthy: '#30D158',
     gps: '#30D158',
+    accentText: '#4CD27A',
   },
 };
 
