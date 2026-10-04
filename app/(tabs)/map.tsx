@@ -1,424 +1,459 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable, ActivityIndicator } from 'react-native';
-import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import * as Location from 'expo-location';
-import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
+import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { getAllIssues, IssueRecord } from '../../lib/db';
-import { useShambaStore } from '../../lib/store';
 import { fetchSoilData, getSoilAdvisory, SoilProfile } from '../../lib/soil';
+import { useShambaStore } from '../../lib/store';
+import { colors, heat, makeStyles, severityPin, spring, timing, useTheme } from '../../lib/theme';
+import { withAlpha } from '../../lib/useTween';
+import { SIDE, useChromeInsets } from '../../lib/layout';
 import { LOCAL_SERVER_URL } from '../../lib/config';
+import ScreenTransition from '../../components/glass/ScreenTransition';
+import Glass from '../../components/glass/Glass';
+import GlassSegmented from '../../components/glass/GlassSegmented';
+import PressableScale from '../../components/glass/PressableScale';
+import { Globe, Heat, Locate, MapPin } from '../../components/glass/Icons';
+import {
+  BlockLabel,
+  CommunityLegend,
+  DISEASE_COLOR,
+  HealthLegend,
+  HeatmapRegion,
+  PinsLegend,
+  Pin,
+  Popover,
+  POPOVER_WIDTH,
+  RegionBadge,
+  RegionCard,
+  SoilCard,
+} from '../../components/map/MapParts';
+import TileMap, { MapCircle, MapContext, MapMarker, TileMapHandle } from '../../components/map/TileMap';
 
-// ── My-field view constants ────────────────────────────────────────────────────
-const SEVERITY_RADIUS: Record<string, number> = {
-  high: 30, medium: 20, low: 12, none: 8, unknown: 15,
-};
+type Layer = 'pins' | 'health' | 'community';
+const LAYERS: Layer[] = ['pins', 'health', 'community'];
 
-const SEVERITY_COLOR: Record<string, string> = {
-  high: '#E53E3E', medium: '#DD6B20', low: '#D69E2E', none: '#38A169', unknown: '#718096',
-};
+const ZONE_RADIUS: Record<string, number> = { high: 30, medium: 22, low: 16, none: 12, unknown: 16 };
+const HEAT_RADIUS: Record<string, number> = { high: 48, medium: 40, low: 32, none: 42, unknown: 28 };
+const HEAT_RINGS: [number, number][] = [[1, 0.16], [0.62, 0.2], [0.3, 0.26]]; // [radius factor, alpha]
+const SEVERITY_RANK: Record<string, number> = { high: 4, medium: 3, low: 2, unknown: 1, none: 0 };
+const MAP_ZOOM = 17;
+const COMMUNITY_ZOOM = 10.5;
+const REGION_RADIUS_M = 6000;
+const HEATMAP_TIMEOUT_MS = 8000;
 
-const PH_STATUS_COLOR: Record<string, string> = {
-  low: '#DD6B20', optimal: '#38A169', high: '#3B82F6',
-};
-
-// ── Community view constants ───────────────────────────────────────────────────
-const DISEASE_COLOR: Record<string, string> = {
-  coffee_leaf_rust: '#DD6B20',
-  coffee_leaf_miner: '#D69E2E',
-  coffee_phoma: '#E53E3E',
-  coffee_brown_eye: '#9B2C2C',
-  healthy: '#38A169',
-  unknown: '#718096',
-};
-
-const DISEASE_LABEL: Record<string, string> = {
-  coffee_leaf_rust: 'Rust',
-  coffee_leaf_miner: 'Leaf Miner',
-  coffee_phoma: 'Phoma',
-  coffee_brown_eye: 'Brown Eye',
-  healthy: 'Healthy',
-  unknown: 'Unknown',
-};
-
-interface HeatmapRegion {
-  lat: number;
-  lng: number;
-  dominant: string;
-  total: number;
-  counts: Record<string, number>;
-}
-
-// ── Component ─────────────────────────────────────────────────────────────────
 export default function MapScreen() {
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [issues, setIssues] = useState<IssueRecord[]>([]);
-  const [selected, setSelected] = useState<IssueRecord | null>(null);
-  const [soilProfile, setSoilProfile] = useState<SoilProfile | null>(null);
-  const [soilExpanded, setSoilExpanded] = useState(true);
-  const storeIssues = useShambaStore(s => s.issues);
+  const { width, height } = useWindowDimensions();
+  const { top, accessoryBottom } = useChromeInsets();
+  const mapRef = useRef<TileMapHandle>(null);
+  const { c, scheme } = useTheme();
+  const styles = useStyles();
+  const storeIssues = useShambaStore((s) => s.issues);
 
-  // Community view
-  const [mapView, setMapView] = useState<'mine' | 'community'>('mine');
-  const [heatmapRegions, setHeatmapRegions] = useState<HeatmapRegion[]>([]);
-  const [heatmapLoading, setHeatmapLoading] = useState(false);
-  const [heatmapMeta, setHeatmapMeta] = useState<{ total: number; villages: number } | null>(null);
+  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [locating, setLocating] = useState(true);
+  const [issues, setIssues] = useState<IssueRecord[]>([]);
+  const [layer, setLayer] = useState<Layer>('pins');
+  const [selected, setSelected] = useState<{ issue: IssueRecord; x: number; y: number } | null>(null);
+  const [soil, setSoil] = useState<SoilProfile | null>(null);
+
+  // Community view: regional aggregates from the hub's /heatmap (GPS anonymised to ~10 km).
+  const [regions, setRegions] = useState<HeatmapRegion[]>([]);
+  const [regionsMeta, setRegionsMeta] = useState<{ total: number; villages: number } | null>(null);
+  const [regionsLoading, setRegionsLoading] = useState(false);
   const [selectedRegion, setSelectedRegion] = useState<HeatmapRegion | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
-        const loc = await Location.getCurrentPositionAsync({});
-        setLocation(loc);
-        fetchSoilData(loc.coords.latitude, loc.coords.longitude).then(profile => {
-          if (profile) setSoilProfile(profile);
-        });
+        // Last known position is instant; a fresh fix can take a long time indoors.
+        const last = await Location.getLastKnownPositionAsync().catch(() => null);
+        if (last && !cancelled) setLocation(last);
+        const fresh = await Promise.race([
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 10_000)),
+        ]);
+        if (fresh && !cancelled) setLocation(fresh);
       }
-      const dbIssues = await getAllIssues();
-      setIssues(dbIssues);
+      if (!cancelled) setLocating(false);
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Fetch heatmap whenever the user switches to the community view
+  // Soil conditions for the field, fetched once we know where we are.
+  const hasLocation = !!location;
   useEffect(() => {
-    if (mapView !== 'community') return;
-    setHeatmapLoading(true);
-    setHeatmapRegions([]);
-    setHeatmapMeta(null);
+    if (!location || soil) return;
+    fetchSoilData(location.coords.latitude, location.coords.longitude)
+      .then((profile) => profile && setSoil(profile))
+      .catch(() => {});
+  }, [hasLocation]);
+  const soilAdvisory = soil ? getSoilAdvisory(soil) : null;
+
+  // If GPS arrives after the map opened on logged scans, glide to the farmer.
+  useEffect(() => {
+    if (location) mapRef.current?.recenter({ lat: location.coords.latitude, lng: location.coords.longitude });
+  }, [hasLocation]);
+
+  useEffect(() => {
+    if (layer !== 'community') return;
+    setRegionsLoading(true);
     const base = LOCAL_SERVER_URL || 'http://localhost:7384';
     const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), HEATMAP_TIMEOUT_MS);
     fetch(`${base}/heatmap`, { signal: controller.signal })
-      .then(r => r.json())
-      .then(data => {
-        setHeatmapRegions(data.regions ?? []);
-        setHeatmapMeta({ total: data.total ?? 0, villages: data.villages ?? 0 });
+      .then((res) => res.json())
+      .then((data) => {
+        setRegions(data.regions ?? []);
+        setRegionsMeta({ total: data.total ?? 0, villages: data.villages ?? 0 });
       })
-      .catch(() => {})
-      .finally(() => setHeatmapLoading(false));
-    return () => controller.abort();
-  }, [mapView]);
+      .catch(() => {
+        setRegions([]);
+        setRegionsMeta(null);
+      })
+      .finally(() => {
+        clearTimeout(timer);
+        setRegionsLoading(false);
+      });
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [layer]);
 
-  // Merge store issues (logged this session) with db issues
-  const allIssues = React.useMemo(() => {
-    const dbIds = new Set(issues.map(i => i.id));
-    const sessionNew = storeIssues.filter(i => i.id > 0 && !dbIds.has(i.id));
-    return [...sessionNew, ...issues];
-  }, [issues, storeIssues]);
+  useFocusEffect(
+    useCallback(() => {
+      getAllIssues().then(setIssues).catch(() => {});
+    }, []),
+  );
+  useEffect(() => {
+    getAllIssues().then(setIssues).catch(() => {});
+  }, [storeIssues]);
 
-  const validIssues = allIssues.filter(i => i.lat !== 0 && i.lng !== 0);
+  const mapped = useMemo(() => issues.filter((i) => i.lat !== 0 && i.lng !== 0), [issues]);
+  const urgent = mapped.filter((i) => i.severity === 'high').length;
 
-  const region = location
-    ? {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: mapView === 'community' ? 0.5 : 0.003,
-        longitudeDelta: mapView === 'community' ? 0.5 : 0.003,
-      }
-    : undefined;
+  const blocks = useMemo(() => {
+    const groups: Record<string, IssueRecord[]> = {};
+    mapped.forEach((i) => i.block && (groups[i.block] ??= []).push(i));
+    return Object.entries(groups).map(([block, list]) => ({
+      block,
+      lat: list.reduce((s, i) => s + i.lat, 0) / list.length,
+      lng: list.reduce((s, i) => s + i.lng, 0) / list.length,
+      worst: list.reduce((w, i) => ((SEVERITY_RANK[i.severity] ?? 0) > (SEVERITY_RANK[w] ?? 0) ? i.severity : w), 'none'),
+    }));
+  }, [mapped]);
 
-  const soilAdvisory = soilProfile ? getSoilAdvisory(soilProfile) : null;
+  // Centre on the farmer, or on their logged scans without GPS. Fixed once the map mounts.
+  const center = location
+    ? { lat: location.coords.latitude, lng: location.coords.longitude }
+    : mapped.length
+      ? { lat: mapped[0].lat, lng: mapped[0].lng }
+      : null;
 
-  function switchView(view: 'mine' | 'community') {
-    setMapView(view);
-    setSelected(null);
-    setSelectedRegion(null);
+  // Pins ↔ health cross-fade.
+  const pinsOn = useSharedValue(1);
+  useEffect(() => {
+    pinsOn.value = withTiming(layer === 'pins' ? 1 : 0, timing.slow);
+  }, [layer]);
+  const communityOn = useSharedValue(0);
+  useEffect(() => {
+    communityOn.value = withTiming(layer === 'community' ? 1 : 0, timing.slow);
+  }, [layer]);
+  const zonesStyle = useAnimatedStyle(() => ({ opacity: pinsOn.value }));
+  const heatStyle = useAnimatedStyle(() => ({ opacity: (1 - pinsOn.value) * (1 - communityOn.value) }));
+  const fieldStyle = useAnimatedStyle(() => ({ opacity: 1 - communityOn.value }));
+  const regionsStyle = useAnimatedStyle(() => ({ opacity: communityOn.value }));
+
+  // Legend height follows the active layer.
+  const legendH = useSharedValue(54);
+  useEffect(() => {
+    legendH.value = withSpring(layer === 'pins' ? 54 : layer === 'health' ? 62 : 66, spring.snappy);
+  }, [layer]);
+  const legendStyle = useAnimatedStyle(() => ({ height: legendH.value, borderRadius: legendH.value / 2 }));
+
+  function selectIssue(issue: IssueRecord) {
+    const point = mapRef.current?.toScreen(issue.lat, issue.lng);
+    if (point) setSelected({ issue, x: point.x, y: point.y });
   }
 
+  function recenter() {
+    if (!location) return;
+    setSelected(null);
+    setSelectedRegion(null);
+    mapRef.current?.recenter(
+      { lat: location.coords.latitude, lng: location.coords.longitude },
+      layer === 'community' ? COMMUNITY_ZOOM : MAP_ZOOM,
+    );
+  }
+
+  function selectLayer(next: Layer) {
+    setSelected(null);
+    setSelectedRegion(null);
+    const focus = location ? { lat: location.coords.latitude, lng: location.coords.longitude } : center;
+    // Zoom out to region scale for the community view, back to the field otherwise.
+    if (focus && (next === 'community') !== (layer === 'community')) {
+      mapRef.current?.recenter(focus, next === 'community' ? COMMUNITY_ZOOM : MAP_ZOOM);
+    }
+    setLayer(next);
+  }
+
+  const popLeft = selected ? Math.max(16, Math.min(width - POPOVER_WIDTH - 16, selected.x - POPOVER_WIDTH / 2)) : 0;
+  const subtitle =
+    layer === 'community'
+      ? regionsLoading
+        ? 'Loading regional data…'
+        : regionsMeta && regionsMeta.total > 0
+          ? `${regionsMeta.total} scan${regionsMeta.total === 1 ? '' : 's'} · ${regionsMeta.villages} village${regionsMeta.villages === 1 ? '' : 's'} · GPS ~10 km`
+          : 'No regional data yet'
+      : mapped.length
+        ? `${mapped.length} pin${mapped.length === 1 ? '' : 's'}${urgent ? ` · ${urgent} urgent` : ''}`
+        : 'No issues logged yet';
+
+  const renderOverlays = (ctx: MapContext) => (
+    <>
+      {/* Health heat map: stacked soft discs approximate a gradient per scan. */}
+      <Animated.View style={[StyleSheet.absoluteFill, heatStyle]} pointerEvents="none">
+        {mapped.map((issue) =>
+          HEAT_RINGS.map(([k, alpha], ring) => (
+            <MapCircle
+              key={`h${issue.id}-${ring}`}
+              ctx={ctx}
+              lat={issue.lat}
+              lng={issue.lng}
+              radiusM={(HEAT_RADIUS[issue.severity] ?? 30) * k}
+              fill={withAlpha(heat[issue.severity] ?? heat.unknown, alpha)}
+            />
+          )),
+        )}
+      </Animated.View>
+
+      {/* Pin zones */}
+      <Animated.View style={[StyleSheet.absoluteFill, zonesStyle, fieldStyle]} pointerEvents="none">
+        {mapped.map((issue) => (
+          <MapCircle
+            key={`z${issue.id}`}
+            ctx={ctx}
+            lat={issue.lat}
+            lng={issue.lng}
+            radiusM={ZONE_RADIUS[issue.severity] ?? 16}
+            fill={withAlpha(severityPin[issue.severity] ?? severityPin.unknown, 0.14)}
+            stroke={withAlpha(severityPin[issue.severity] ?? severityPin.unknown, 0.5)}
+          />
+        ))}
+      </Animated.View>
+
+      {/* You are here */}
+      {location && (
+        <MapMarker ctx={ctx} lat={location.coords.latitude} lng={location.coords.longitude}>
+          <View style={styles.me} />
+        </MapMarker>
+      )}
+
+      {/* Community regions */}
+      <Animated.View style={[StyleSheet.absoluteFill, regionsStyle]} pointerEvents={layer === 'community' ? 'box-none' : 'none'}>
+        {regions.map((region, i) => (
+          <MapCircle
+            key={`rc${i}`}
+            ctx={ctx}
+            lat={region.lat}
+            lng={region.lng}
+            radiusM={REGION_RADIUS_M}
+            fill={withAlpha(DISEASE_COLOR[region.dominant] ?? DISEASE_COLOR.unknown, 0.16)}
+            stroke={withAlpha(DISEASE_COLOR[region.dominant] ?? DISEASE_COLOR.unknown, 0.5)}
+          />
+        ))}
+        {layer === 'community' &&
+          regions.map((region, i) => (
+            <MapMarker key={`rb${i}`} ctx={ctx} lat={region.lat} lng={region.lng} zIndex={2}>
+              <Pressable
+                onPress={() => setSelectedRegion(region)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Region: ${region.total} scans, mostly ${region.dominant}`}
+              >
+                <RegionBadge region={region} selected={selectedRegion === region} />
+              </Pressable>
+            </MapMarker>
+          ))}
+      </Animated.View>
+
+      {layer !== 'community' && mapped.map((issue, i) => (
+        <MapMarker key={`p${issue.id}`} ctx={ctx} lat={issue.lat} lng={issue.lng} zIndex={selected?.issue.id === issue.id ? 2 : 1}>
+          <Pressable
+            onPress={() => selectIssue(issue)}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={`${issue.diseaseName}, ${issue.severity}`}
+          >
+            <Pin severity={issue.severity} selected={selected?.issue.id === issue.id} index={i} />
+          </Pressable>
+        </MapMarker>
+      ))}
+
+      {layer === 'health' &&
+        blocks.map((b) => (
+          <MapMarker key={`b${b.block}`} ctx={ctx} lat={b.lat} lng={b.lng} zIndex={3}>
+            <View style={styles.blockLabelOffset} pointerEvents="none">
+              <BlockLabel block={b.block} worst={b.worst} />
+            </View>
+          </MapMarker>
+        ))}
+    </>
+  );
+
   return (
-    <View style={styles.container}>
-      {/* Header with segmented view toggle */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <Text style={styles.title}>Field Map</Text>
-          <Text style={styles.subtitle}>{validIssues.length} issue{validIssues.length !== 1 ? 's' : ''} logged</Text>
-        </View>
-        <View style={styles.viewToggle}>
-          <TouchableOpacity
-            style={[styles.toggleBtn, mapView === 'mine' && styles.toggleBtnActive]}
-            onPress={() => switchView('mine')}
-            accessibilityRole="button"
-            accessibilityLabel="My field view"
+    <ScreenTransition
+      background={c.groundMap}
+      backdrop={
+        center ? (
+          <TileMap
+            ref={mapRef}
+            center={center}
+            zoom={MAP_ZOOM}
+            dim={scheme === 'dark' ? 0.38 : 0}
+            onPanStart={() => setSelected(null)}
+            onPress={() => {
+              setSelected(null);
+              setSelectedRegion(null);
+            }}
           >
-            <Text style={[styles.toggleText, mapView === 'mine' && styles.toggleTextActive]}>My Field</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toggleBtn, mapView === 'community' && styles.toggleBtnActive]}
-            onPress={() => switchView('community')}
-            accessibilityRole="button"
-            accessibilityLabel="Community disease map"
-          >
-            <Text style={[styles.toggleText, mapView === 'community' && styles.toggleTextActive]}>Community</Text>
-          </TouchableOpacity>
-        </View>
+            {renderOverlays}
+          </TileMap>
+        ) : (
+          <View style={styles.waiting}>
+            {locating ? <ActivityIndicator color={c.labelSecondary} /> : <MapPin size={40} color={c.checkBorder} hole={c.groundMap} />}
+            <Text style={styles.waitingText}>{locating ? 'Finding your location…' : 'Turn on location to see your field'}</Text>
+          </View>
+        )
+      }
+    >
+      {/* Top scroll-edge effect under the title */}
+      <View style={[styles.topFade, { height: top + 150 }]} pointerEvents="none">
+        <Svg width="100%" height="100%">
+          <Defs>
+            <LinearGradient id="mapFade" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={c.groundMap} stopOpacity={0.97} />
+              <Stop offset="0.6" stopColor={c.groundMap} stopOpacity={0.88} />
+              <Stop offset="1" stopColor={c.groundMap} stopOpacity={0} />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#mapFade)" />
+        </Svg>
       </View>
 
-      {/* Soil card — only in my-field view */}
-      {mapView === 'mine' && soilProfile && soilAdvisory && (
-        <Pressable style={styles.soilCard} onPress={() => setSoilExpanded(e => !e)}>
-          <View style={styles.soilCardHeader}>
-            <View style={styles.soilTitleRow}>
-              <Ionicons name="layers-outline" size={15} color="#2D6A4F" />
-              <Text style={styles.soilTitle}>Field Soil Conditions</Text>
-              <View style={[styles.phBadge, { backgroundColor: PH_STATUS_COLOR[soilAdvisory.phStatus] + '20' }]}>
-                <Text style={[styles.phBadgeText, { color: PH_STATUS_COLOR[soilAdvisory.phStatus] }]}>
-                  pH {soilProfile.ph.toFixed(1)}
-                </Text>
-              </View>
-            </View>
-            <Ionicons name={soilExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#9CA3AF" />
+      {/* CONTROL LAYER */}
+      <View style={[styles.header, { top: top - 2 }]} pointerEvents="box-none">
+        <View style={styles.titleRow} pointerEvents="box-none">
+          <View pointerEvents="none">
+            <Text style={styles.title} accessibilityRole="header">Field Map</Text>
+            <Text style={styles.subtitle}>{subtitle}</Text>
           </View>
-          {soilExpanded && (
-            <View style={styles.soilBody}>
-              <Text style={styles.soilAdvice}>{soilAdvisory.phAdvice}</Text>
-              {soilAdvisory.phStatus !== 'optimal' && (
-                <Text style={styles.soilAdviceSub}>{soilAdvisory.generalAdvice}</Text>
-              )}
-              <Text style={styles.soilSource}>Source: SoilGrids (ISRIC) · 0–5 cm depth</Text>
-            </View>
-          )}
-        </Pressable>
+          <PressableScale onPress={recenter} disabled={!location} accessibilityRole="button" accessibilityLabel="Center on my location">
+            <Glass radius={24} style={styles.locate}>
+              <Locate />
+            </Glass>
+          </PressableScale>
+        </View>
+
+        <GlassSegmented
+          items={[
+            { key: 'pins', label: 'Pins', icon: (col) => <MapPin size={16} color={col} hole={c.card} /> },
+            { key: 'health', label: 'Health', icon: (col) => <Heat color={col} /> },
+            { key: 'community', label: 'Community', accessibilityLabel: 'Community disease map', icon: (col) => <Globe color={col} /> },
+          ]}
+          selectedIndex={LAYERS.indexOf(layer)}
+          onSelect={(i) => selectLayer(LAYERS[i])}
+          direction="row"
+          layout="inline"
+          palette={{
+            active: c.label,
+            idle: c.labelSecondary,
+            lens: scheme === 'dark' ? 'rgba(255,255,255,0.2)' : '#FFFFFF',
+            lensEdge: scheme === 'dark' ? 'rgba(255,255,255,0.35)' : '#FFFFFF',
+          }}
+          radius={22}
+          padding={3}
+          itemStyle={styles.layerItem}
+          style={styles.layerSwitch}
+          accessibilityLabel="Map layer"
+        />
+
+        {layer !== 'community' && soil && soilAdvisory && <SoilCard profile={soil} advisory={soilAdvisory} />}
+      </View>
+
+      {center && mapped.length === 0 && layer !== 'community' && (
+        <Animated.View entering={FadeIn.duration(300).delay(200)} exiting={FadeOut.duration(150)} style={[styles.hint, { bottom: accessoryBottom + 70 }]} pointerEvents="none">
+          <Glass radius={22} style={styles.hintGlass}>
+            <MapPin size={18} color={colors.primary} hole={c.card} />
+            <Text style={styles.hintText}>Tap the pin on a scan result to log it here.</Text>
+          </Glass>
+        </Animated.View>
       )}
 
-      {/* Community stats banner */}
-      {mapView === 'community' && (
-        <View style={styles.communityBanner}>
-          {heatmapLoading ? (
-            <ActivityIndicator size="small" color="#2D6A4F" />
-          ) : heatmapMeta ? (
-            <Text style={styles.communityBannerText}>
-              {heatmapMeta.total} scan{heatmapMeta.total !== 1 ? 's' : ''} from {heatmapMeta.villages} village{heatmapMeta.villages !== 1 ? 's' : ''} · GPS anonymised to ~10km
-            </Text>
-          ) : (
-            <Text style={styles.communityBannerText}>No regional data yet — scans will appear here once shared</Text>
-          )}
-        </View>
+      {selected && layer === 'pins' && (
+        <Popover
+          issue={selected.issue}
+          left={popLeft}
+          bottom={height - selected.y + 32}
+          arrowX={Math.max(18, Math.min(POPOVER_WIDTH - 36, selected.x - popLeft - 9))}
+        />
       )}
 
-      {region ? (
-        <MapView
-          style={styles.map}
-          provider={PROVIDER_GOOGLE}
-          initialRegion={region}
-          showsUserLocation
-          showsMyLocationButton
-        >
-          {/* My-field markers */}
-          {mapView === 'mine' && validIssues.map((issue) => (
-            <React.Fragment key={issue.id}>
-              <Circle
-                center={{ latitude: issue.lat, longitude: issue.lng }}
-                radius={SEVERITY_RADIUS[issue.severity] ?? 15}
-                fillColor={SEVERITY_COLOR[issue.severity] + '30'}
-                strokeColor={SEVERITY_COLOR[issue.severity] + '80'}
-                strokeWidth={1}
-              />
-              <Marker
-                coordinate={{ latitude: issue.lat, longitude: issue.lng }}
-                onPress={() => setSelected(issue)}
-                pinColor={SEVERITY_COLOR[issue.severity]}
-              />
-            </React.Fragment>
-          ))}
-
-          {/* Community heatmap regions */}
-          {mapView === 'community' && heatmapRegions.map((r, i) => {
-            const color = DISEASE_COLOR[r.dominant] ?? '#718096';
-            return (
-              <React.Fragment key={`region-${i}`}>
-                <Circle
-                  center={{ latitude: r.lat, longitude: r.lng }}
-                  radius={6000}
-                  fillColor={color + '28'}
-                  strokeColor={color + '80'}
-                  strokeWidth={1.5}
-                />
-                <Marker
-                  coordinate={{ latitude: r.lat, longitude: r.lng }}
-                  onPress={() => setSelectedRegion(r)}
-                  pinColor={color}
-                />
-              </React.Fragment>
-            );
-          })}
-        </MapView>
-      ) : (
-        <View style={styles.noLocation}>
-          <Ionicons name="location-outline" size={48} color="#D1D5DB" />
-          <Text style={styles.noLocationText}>Waiting for location…</Text>
-        </View>
+      {center && (
+        <Text style={[styles.attribution, { bottom: accessoryBottom + 62 }]} pointerEvents="none">
+          © OpenStreetMap contributors
+        </Text>
       )}
 
-      {/* Legend */}
-      {mapView === 'mine' ? (
-        <View style={styles.legend}>
-          {[
-            { label: 'Urgent', color: '#E53E3E' },
-            { label: 'Watch', color: '#DD6B20' },
-            { label: 'Monitor', color: '#D69E2E' },
-            { label: 'Healthy', color: '#38A169' },
-          ].map(({ label, color }) => (
-            <View key={label} style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: color }]} />
-              <Text style={styles.legendLabel}>{label}</Text>
-            </View>
-          ))}
-        </View>
-      ) : (
-        <View style={styles.legend}>
-          {Object.entries(DISEASE_LABEL).map(([id, label]) => (
-            <View key={id} style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: DISEASE_COLOR[id] }]} />
-              <Text style={styles.legendLabel}>{label}</Text>
-            </View>
-          ))}
-        </View>
+      {selectedRegion && layer === 'community' && (
+        <RegionCard region={selectedRegion} bottom={accessoryBottom + 66 + 12} onClose={() => setSelectedRegion(null)} />
       )}
 
-      {/* My-field issue popup */}
-      {selected && mapView === 'mine' && (
-        <View style={styles.popup}>
-          <TouchableOpacity onPress={() => setSelected(null)} style={styles.popupClose}>
-            <Ionicons name="close" size={18} color="#6B7280" />
-          </TouchableOpacity>
-          <Text style={styles.popupName}>{selected.diseaseName}</Text>
-          <Text style={styles.popupDate}>
-            {new Date(selected.timestamp).toLocaleDateString()} · {Math.round(selected.confidence * 100)}% confidence
-          </Text>
-        </View>
-      )}
-
-      {/* Community region popup */}
-      {selectedRegion && mapView === 'community' && (
-        <View style={styles.popup}>
-          <TouchableOpacity onPress={() => setSelectedRegion(null)} style={styles.popupClose}>
-            <Ionicons name="close" size={18} color="#6B7280" />
-          </TouchableOpacity>
-          <Text style={styles.popupName}>{DISEASE_LABEL[selectedRegion.dominant] ?? 'Unknown'}</Text>
-          <Text style={styles.popupDate}>
-            {selectedRegion.total} scan{selectedRegion.total !== 1 ? 's' : ''} · Regional data (anonymised)
-          </Text>
-          {Object.entries(selectedRegion.counts).length > 1 && (
-            <Text style={styles.popupSub}>
-              {Object.entries(selectedRegion.counts)
-                .sort((a, b) => b[1] - a[1])
-                .map(([id, n]) => `${DISEASE_LABEL[id] ?? id} ×${n}`)
-                .join('  ·  ')}
-            </Text>
-          )}
-        </View>
-      )}
-    </View>
+      {/* Tab bar accessory: legend for the active layer */}
+      <Glass radius={27} style={[styles.legend, { bottom: accessoryBottom }, legendStyle]}>
+        {layer === 'pins' && <PinsLegend key="pins" issues={mapped} />}
+        {layer === 'health' && <HealthLegend key="health" />}
+        {layer === 'community' && <CommunityLegend key="community" />}
+      </Glass>
+    </ScreenTransition>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAF9' },
-
-  // Header
-  header: {
-    paddingTop: 60,
-    paddingBottom: 12,
-    paddingHorizontal: 20,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    gap: 12,
-  },
-  headerTop: { gap: 2 },
-  title: { fontSize: 22, fontWeight: '700', color: '#111827' },
-  subtitle: { fontSize: 14, color: '#6B7280' },
-
-  // Segmented toggle
-  viewToggle: {
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 10,
-    padding: 2,
-  },
-  toggleBtn: {
-    flex: 1,
-    paddingVertical: 7,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  toggleBtnActive: {
-    backgroundColor: '#fff',
+const useStyles = makeStyles((c) => ({
+  waiting: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  waitingText: { fontSize: 16, color: c.labelSecondary },
+  topFade: { position: 'absolute', left: 0, right: 0, top: 0 },
+  header: { position: 'absolute', left: SIDE, right: SIDE, gap: 12 },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.7, lineHeight: 40, color: c.label },
+  subtitle: { fontSize: 16, fontWeight: '500', color: c.labelSecondary },
+  locate: { width: 48, height: 48, marginTop: 4, alignItems: 'center', justifyContent: 'center' },
+  layerSwitch: { alignSelf: 'flex-start', height: 44 },
+  layerItem: { height: 38, paddingHorizontal: 16 },
+  legend: { position: 'absolute', left: SIDE, right: SIDE },
+  attribution: { position: 'absolute', right: SIDE + 6, fontSize: 10, color: c.labelTertiary },
+  hint: { position: 'absolute', left: SIDE, right: SIDE, alignItems: 'center' },
+  hintGlass: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 16 },
+  hintText: { fontSize: 15, fontWeight: '500', color: c.labelStrong, flexShrink: 1 },
+  me: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.locate,
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
     shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
-  toggleText: { fontSize: 14, fontWeight: '500', color: '#6B7280' },
-  toggleTextActive: { fontSize: 14, fontWeight: '600', color: '#111827' },
-
-  // Soil card
-  soilCard: {
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  soilCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  soilTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  soilTitle: { fontSize: 13, fontWeight: '600', color: '#374151' },
-  phBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  phBadgeText: { fontSize: 12, fontWeight: '700' },
-  soilBody: { marginTop: 8, gap: 4 },
-  soilAdvice: { fontSize: 13, color: '#374151', lineHeight: 18 },
-  soilAdviceSub: { fontSize: 12, color: '#6B7280', lineHeight: 18 },
-  soilSource: { fontSize: 10, color: '#9CA3AF', marginTop: 4 },
-
-  // Community banner
-  communityBanner: {
-    backgroundColor: '#F0FDF4',
-    borderBottomWidth: 1,
-    borderBottomColor: '#BBF7D0',
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    minHeight: 36,
-    justifyContent: 'center',
-  },
-  communityBannerText: { fontSize: 12, color: '#166534', textAlign: 'center' },
-
-  // Map
-  map: { flex: 1 },
-  noLocation: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  noLocationText: { fontSize: 16, color: '#9CA3AF' },
-
-  // Legend
-  legend: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-around',
-    backgroundColor: '#fff',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 4 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendLabel: { fontSize: 11, color: '#374151' },
-
-  // Popups
-  popup: {
-    position: 'absolute',
-    bottom: 80,
-    left: 20,
-    right: 20,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  popupClose: { position: 'absolute', top: 12, right: 12 },
-  popupName: { fontSize: 17, fontWeight: '600', color: '#111827', marginBottom: 4, paddingRight: 24 },
-  popupDate: { fontSize: 13, color: '#6B7280' },
-  popupSub: { fontSize: 12, color: '#9CA3AF', marginTop: 6, lineHeight: 18 },
-});
+  blockLabelOffset: { transform: [{ translateY: -34 }] },
+}));

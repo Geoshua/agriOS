@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useIsFocused } from 'expo-router';
-import Animated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import Animated, { Extrapolation, FadeIn, FadeOut, interpolate, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useShambaStore, ScanMode } from '../../lib/store';
 import { runInference, getDisease } from '../../lib/inference';
 import { getQuickLocation } from '../../lib/location';
@@ -21,6 +21,7 @@ import CaptureButton from '../../components/scan/CaptureButton';
 import ModeRail from '../../components/scan/ModeRail';
 import DetectionAccessory from '../../components/scan/DetectionAccessory';
 import AdvisorySheet, { Detent } from '../../components/advisory/AdvisorySheet';
+import { CLOUD_SERVER_URL, LOCAL_SERVER_URL } from '../../lib/config';
 
 const INFERENCE_INTERVAL_MS = 1200;
 const LOCATION_REFRESH_MS = 30_000;
@@ -186,19 +187,25 @@ export default function ScanScreen() {
         <Pressable style={StyleSheet.absoluteFill} onPress={closeDetails} accessibilityLabel="Back to scanner" />
       )}
 
+      {/* Contribution indicator — only when scans can actually reach a hub (GPS + server
+          configured); drawn under the top bar so the block menu covers it. */}
+      {lastKnownLocation && (LOCAL_SERVER_URL || CLOUD_SERVER_URL) && detent === 'closed' && (
+        <Animated.View
+          entering={FadeIn.duration(240)}
+          exiting={FadeOut.duration(160)}
+          style={[styles.networkPill, { top: insets.top + 64 }]}
+          pointerEvents="none"
+        >
+          <View style={styles.networkDot} />
+          <Text style={styles.networkText}>Sharing with network</Text>
+        </Animated.View>
+      )}
+
       <ScanTopBar
         mode={scanMode}
         scanning={scanning}
         onBack={() => (scanMode === 'details' ? closeDetails() : setScanMode('ar'))}
       />
-
-      {/* Contribution indicator — shown only when GPS is active */}
-      {lastKnownLocation && detent === 'closed' && (
-        <View style={[styles.networkPill, { top: insets.top + 56 }]} pointerEvents="none">
-          <View style={styles.networkDot} />
-          <Text style={styles.networkText}>Sharing with network</Text>
-        </View>
-      )}
 
       <AdvisorySheet
         disease={disease}

@@ -29,7 +29,7 @@ const TILE = 256;
 const HALF = 50_000;
 const MIN_TILE_Z = 3;
 const MAX_TILE_Z = 19;
-const MIN_SCALE = 1 / 64;
+const MIN_SCALE = 1 / 256; // ~8 zoom levels out from the base, for the community view
 const MAX_SCALE = 8;
 const TILE_URL = (z: number, x: number, y: number) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
 // OSM tile usage policy asks clients to identify themselves.
@@ -62,8 +62,8 @@ export interface MapContext {
 export interface TileMapHandle {
   /** Screen position (relative to the map view) of a coordinate. */
   toScreen: (lat: number, lng: number) => { x: number; y: number };
-  /** Animate so `point` sits in the middle at the initial zoom. */
-  recenter: (point: LatLng) => void;
+  /** Animate so `point` sits in the middle, at `zoomLevel` (defaults to the initial zoom). */
+  recenter: (point: LatLng, zoomLevel?: number) => void;
 }
 
 interface Props {
@@ -222,10 +222,10 @@ const TileMap = forwardRef<TileMapHandle, Props>(function TileMap({ center, zoom
         const p = toWorld(lat, lng);
         return { x: size.w / 2 + tx.value + p.x * s.value, y: size.h / 2 + ty.value + p.y * s.value };
       },
-      recenter: (point) => {
+      recenter: (point, zoomLevel = zoom) => {
         const p = toWorld(point.lat, point.lng);
-        const target = 2 ** (zoom - Z0);
-        const cfg = { duration: 450, easing: ease.emphasized };
+        const target = Math.max(MIN_SCALE, Math.min(MAX_SCALE, 2 ** (zoomLevel - Z0)));
+        const cfg = { duration: 650, easing: ease.emphasized };
         tx.value = withTiming(-p.x * target, cfg);
         ty.value = withTiming(-p.y * target, cfg);
         s.value = withTiming(target, cfg, () => finalPick());

@@ -6,7 +6,7 @@ import Animated, { FadeIn, FadeInUp, FadeOut, LinearTransition, withDelay, withS
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import Glass from '../glass/Glass';
 import PressableScale from '../glass/PressableScale';
-import { ChevronDown, PinGlyph, StatusDisc } from '../glass/Icons';
+import { ChevronDown, Close, PinGlyph, StatusDisc } from '../glass/Icons';
 import { colors, makeStyles, Scheme, sentenceCase, severityGlyph, severityLabel, severityPin, spring, timing, useTheme } from '../../lib/theme';
 import type { IssueRecord } from '../../lib/db';
 import type { SoilAdvisory, SoilProfile } from '../../lib/soil';
@@ -205,6 +205,89 @@ export function HealthLegend() {
   );
 }
 
+// ── Community (regional) view ─────────────────────────────────────────────────
+
+/** Regional aggregate from the hub/cloud `/heatmap` (GPS anonymised to ~10 km). */
+export interface HeatmapRegion {
+  lat: number;
+  lng: number;
+  dominant: string;
+  total: number;
+  counts: Record<string, number>;
+}
+
+export const DISEASE_COLOR: Record<string, string> = {
+  coffee_leaf_rust: '#DD6B20',
+  coffee_leaf_miner: '#D69E2E',
+  coffee_phoma: '#E53E3E',
+  coffee_brown_eye: '#9B2C2C',
+  healthy: '#38A169',
+  unknown: '#718096',
+};
+
+export const DISEASE_LABEL: Record<string, string> = {
+  coffee_leaf_rust: 'Rust',
+  coffee_leaf_miner: 'Leaf miner',
+  coffee_phoma: 'Phoma',
+  coffee_brown_eye: 'Brown eye',
+  healthy: 'Healthy',
+  unknown: 'Unknown',
+};
+
+/** Count badge marking a region's centre. */
+export function RegionBadge({ region, selected }: { region: HeatmapRegion; selected: boolean }) {
+  const styles = useStyles();
+  const color = DISEASE_COLOR[region.dominant] ?? DISEASE_COLOR.unknown;
+  return (
+    <Animated.View entering={pinDrop(0)} style={[styles.regionBadge, { backgroundColor: color }, selected && styles.regionBadgeSelected]}>
+      <Text style={styles.regionBadgeText}>{region.total}</Text>
+    </Animated.View>
+  );
+}
+
+/** Glass card for a tapped region: dominant disease, scan count, breakdown. */
+export function RegionCard({ region, bottom, onClose }: { region: HeatmapRegion; bottom: number; onClose: () => void }) {
+  const styles = useStyles();
+  const { c } = useTheme();
+  const color = DISEASE_COLOR[region.dominant] ?? DISEASE_COLOR.unknown;
+  const breakdown = Object.entries(region.counts).sort((a, b) => b[1] - a[1]);
+  return (
+    <Animated.View entering={popIn} exiting={popOut} style={[styles.regionCardWrap, { bottom }]}>
+      <Glass radius={24} highlightHeight="50%" style={styles.regionCard}>
+        <View style={styles.regionHead}>
+          <View style={[styles.legendDot, { backgroundColor: color }]} />
+          <Text style={styles.popoverTitle}>{DISEASE_LABEL[region.dominant] ?? 'Unknown'}</Text>
+          <PressableScale onPress={onClose} style={styles.regionClose} accessibilityLabel="Close region details">
+            <Close size={14} color={c.labelSecondary} />
+          </PressableScale>
+        </View>
+        <Text style={styles.popoverMeta}>
+          {region.total} scan{region.total === 1 ? '' : 's'} · regional data (anonymised)
+        </Text>
+        {breakdown.length > 1 && (
+          <Text style={styles.regionBreakdown}>
+            {breakdown.map(([id, n]) => `${DISEASE_LABEL[id] ?? id} ×${n}`).join('  ·  ')}
+          </Text>
+        )}
+      </Glass>
+    </Animated.View>
+  );
+}
+
+export function CommunityLegend() {
+  const styles = useStyles();
+  return (
+    <Animated.View entering={FadeIn.duration(220).delay(60)} exiting={FadeOut.duration(120)} style={styles.communityLegend}>
+      {Object.entries(DISEASE_LABEL).map(([id, label]) => (
+        <View key={id} style={styles.communityItem}>
+          <View style={[styles.legendDot, { backgroundColor: DISEASE_COLOR[id] }]} />
+          <Text style={styles.legendTextSmall}>{label}</Text>
+        </View>
+      ))}
+    </Animated.View>
+  );
+}
+
 // ── Soil conditions (SoilGrids) ───────────────────────────────────────────────
 
 const PH_LABEL: Record<SoilAdvisory['phStatus'], string> = { low: 'acidic', optimal: 'optimal', high: 'alkaline' };
@@ -326,6 +409,31 @@ const useStyles = makeStyles((c, g) => ({
   legendDot: { width: 11, height: 11, borderRadius: 6 },
   legendDotEdge: { borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(0,0,0,0.25)' },
   legendText: { fontSize: 14, fontWeight: '600', color: c.label },
+  legendTextSmall: { fontSize: 13, fontWeight: '600', color: c.label },
+  communityLegend: { ...StyleSheet.absoluteFill, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', alignContent: 'center', paddingHorizontal: 14, rowGap: 4 },
+  communityItem: { width: '33.3%', flexDirection: 'row', alignItems: 'center', gap: 5 },
+  regionBadge: {
+    minWidth: 34,
+    height: 34,
+    paddingHorizontal: 8,
+    borderRadius: 17,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  regionBadgeSelected: { transform: [{ scale: 1.25 }] },
+  regionBadgeText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  regionCardWrap: { position: 'absolute', left: 20, right: 20 },
+  regionCard: { paddingVertical: 12, paddingHorizontal: 16, gap: 3 },
+  regionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  regionClose: { marginLeft: 'auto', width: 44, height: 44, marginVertical: -10, marginRight: -10, alignItems: 'center', justifyContent: 'center' },
+  regionBreakdown: { fontSize: 13, lineHeight: 19, color: c.labelSecondary, marginTop: 2 },
   healthLegend: { ...StyleSheet.absoluteFill, justifyContent: 'center', gap: 5, paddingHorizontal: 20 },
   healthRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   ramp: { flex: 1, height: 10 },
