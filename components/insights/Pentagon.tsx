@@ -66,13 +66,13 @@ export default function Pentagon({ axes }: { axes: Axis[] }) {
           const p = point(i, R);
           return <Line key={i} x1={C} y1={C} x2={p.x} y2={p.y} stroke={c.separator} strokeWidth={1} />;
         })}
-        <AnimatedPath animatedProps={animatedProps} fill="rgba(30,123,60,0.28)" stroke={colors.primary} strokeWidth={2.5} strokeLinejoin="round" />
+        <AnimatedPath animatedProps={animatedProps} fill="rgba(35,155,109,0.28)" stroke={colors.emeraldBright} strokeWidth={2.5} strokeLinejoin="round" />
         {axes.map((a, i) => {
           const p = point(i, ((a.value ?? 0) / 5) * R);
           return a.value == null ? (
             <Circle key={a.key} cx={point(i, R).x} cy={point(i, R).y} r={4} fill="none" stroke={c.labelTertiary} strokeDasharray="2 2" strokeWidth={1.5} />
           ) : (
-            <Circle key={a.key} cx={p.x} cy={p.y} r={4} fill={colors.primary} />
+            <Circle key={a.key} cx={p.x} cy={p.y} r={4} fill={colors.emeraldBright} />
           );
         })}
       </Svg>

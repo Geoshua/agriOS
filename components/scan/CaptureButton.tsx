@@ -1,7 +1,7 @@
 /**
  * Manual capture shutter for full-camera mode (bottom centre, above the
- * minimized tab bar). Press → screen flash → spinner → green check, and a
- * toast confirming what was saved to the scanned list.
+ * minimized tab bar): a cream ring around a solid emerald disc. Press →
+ * screen flash → spinner → check, and a toast confirming what was saved.
  */
 
 import React, { useEffect } from 'react';
@@ -25,7 +25,7 @@ import { colors, sentenceCase, severityGlyph, severityOnDark, spring, useTheme }
 import type { CaptureResult, CaptureState } from '../../lib/useManualCapture';
 import { MINI_SIZE, useChromeInsets } from '../../lib/layout';
 
-const SIZE = 74;
+const SIZE = 76;
 
 const enter = () => {
   'worklet';
@@ -58,7 +58,7 @@ export default function CaptureButton({ state, last, onPress }: { state: Capture
   const flashStyle = useAnimatedStyle(() => ({ opacity: flash.value }));
   const innerStyle = useAnimatedStyle(() => ({
     transform: [{ scale: inner.value }],
-    backgroundColor: interpolateColor(saved.value, [0, 1], ['#FFFFFF', colors.scanning]),
+    backgroundColor: interpolateColor(saved.value, [0, 1], [colors.emerald, colors.emeraldBright]),
   }));
 
   return (
@@ -77,12 +77,12 @@ export default function CaptureButton({ state, last, onPress }: { state: Capture
           <Animated.View style={[styles.inner, innerStyle]}>
             {state === 'busy' && (
               <Animated.View entering={ZoomIn.duration(150)} exiting={ZoomOut.duration(120)}>
-                <ActivityIndicator color="#1C1C1E" />
+                <ActivityIndicator color={colors.onEmerald} />
               </Animated.View>
             )}
             {state === 'saved' && (
               <Animated.View entering={ZoomIn.springify().damping(12).stiffness(300)} exiting={ZoomOut.duration(120)}>
-                <Check size={28} />
+                <Check size={30} color={colors.onEmerald} />
               </Animated.View>
             )}
           </Animated.View>
@@ -116,14 +116,15 @@ export default function CaptureButton({ state, last, onPress }: { state: Capture
 }
 
 const styles = StyleSheet.create({
-  flash: { backgroundColor: '#FFFFFF' },
+  flash: { backgroundColor: colors.cream },
   wrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   ring: {
     width: SIZE,
     height: SIZE,
     borderRadius: SIZE / 2,
-    borderWidth: 4,
-    borderColor: '#FFFFFF',
+    borderWidth: 3,
+    borderColor: colors.cream,
+    backgroundColor: 'rgba(12,10,7,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -131,7 +132,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
   },
-  inner: { width: SIZE - 14, height: SIZE - 14, borderRadius: (SIZE - 14) / 2, alignItems: 'center', justifyContent: 'center' },
+  inner: { width: SIZE - 16, height: SIZE - 16, borderRadius: (SIZE - 16) / 2, alignItems: 'center', justifyContent: 'center' },
   toastRow: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   toast: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 40, paddingLeft: 10, paddingRight: 16, maxWidth: '90%' },
   toastText: { color: colors.onDark, fontSize: 15, fontWeight: '600', flexShrink: 1 },

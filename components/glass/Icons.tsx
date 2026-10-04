@@ -184,7 +184,7 @@ export function Gear({ size = 24, color = '#fff' }: IconProps) {
   );
 }
 
-export function Locate({ size = 22, color = '#0A84FF' }: IconProps) {
+export function Locate({ size = 22, color = '#34C98E' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path d="M20.5 3.5 3 10.6l7.2 2.2 2.2 7.2L20.5 3.5Z" fill={color} />
@@ -341,6 +341,89 @@ export function PinGlyph({ kind, size = 18 }: { kind: 'alert' | 'warning' | 'inf
           <Circle cx={12} cy={18.2} r={1.8} fill="#fff" />
         </>
       )}
+    </Svg>
+  );
+}
+
+// ── Brand ─────────────────────────────────────────────────────────────────────
+
+/**
+ * The AgriOS emblem: a faceted leaf in two emerald planes split by a vein cut.
+ * Geometry measured from the logo artwork (assets/brand); the cuts are real
+ * negative space, so it sits on any surface. Width is 0.728 of `size`.
+ * `mono` draws both planes in one colour.
+ */
+export function Emblem({ size = 48, light = '#239B6D', dark = '#33644C', mono }: { size?: number; light?: string; dark?: string; mono?: string }) {
+  const l = mono ?? light;
+  const d = mono ?? dark;
+  return (
+    <Svg width={(size * 100) / 137.34} height={size} viewBox="0 0 100 137.34">
+      <Path d="M45.925 4.778 Q45.925 3.778 45.192 4.458 L6.892 39.963 Q6.159 40.643 6.875 41.340 L45.209 78.675 Q45.925 79.372 45.925 78.372 Z" fill={l} />
+      <Path d="M0.251 46.265 Q0.174 46.191 0.096 46.263 L0.078 46.280 Q0.000 46.352 0.000 46.459 L0.000 87.279 Q0.000 92.279 3.714 95.626 L45.182 132.998 Q45.925 133.668 45.925 132.668 L45.925 91.749 Q45.925 90.749 45.209 90.051 Z" fill={l} />
+      <Path d="M54.075 78.372 Q54.075 79.372 54.791 78.675 L93.125 41.340 Q93.841 40.643 93.108 39.963 L54.808 4.458 Q54.075 3.778 54.075 4.778 Z" fill={d} />
+      <Path d="M54.791 90.051 Q54.075 90.749 54.075 91.749 L54.075 132.668 Q54.075 133.668 54.818 132.998 L96.286 95.626 Q100.000 92.279 100.000 87.279 L100.000 46.459 Q100.000 46.352 99.922 46.280 L99.904 46.263 Q99.826 46.191 99.749 46.265 Z" fill={d} />
+    </Svg>
+  );
+}
+
+export function TrendUp({ size = 18, color = '#fff' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color, 2.6)}>
+      <Path d="m3 17 6-6 4 4 8-8" />
+      <Path d="M15 7h6v6" />
+    </Svg>
+  );
+}
+
+export function Minus({ size = 18, color = '#fff' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color, 2.6)}>
+      <Path d="M6 12h12" />
+    </Svg>
+  );
+}
+
+export function ChevronRight({ size = 18, color = '#fff' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color, 2.6)}>
+      <Path d="m9 5 7 7-7 7" />
+    </Svg>
+  );
+}
+
+export function Sparkle({ size = 16, color = '#fff' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path d="M12 3c.6 5 3.9 8.4 9 9-5.1.6-8.4 4-9 9-.6-5-3.9-8.4-9-9 5.1-.6 8.4-4 9-9Z" fill={color} />
+    </Svg>
+  );
+}
+
+export function Repeat({ size = 20, color = '#fff' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color, 2.2)}>
+      <Path d="m17 2 4 4-4 4" />
+      <Path d="M3 11V9a3 3 0 0 1 3-3h15" />
+      <Path d="m7 22-4-4 4-4" />
+      <Path d="M21 13v2a3 3 0 0 1-3 3H3" />
+    </Svg>
+  );
+}
+
+export function CheckCircle({ size = 20, color = '#fff' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color, 2.2)}>
+      <Circle cx={12} cy={12} r={9} />
+      <Path d="m8 12.5 2.8 2.8L16.5 9.5" />
+    </Svg>
+  );
+}
+
+export function Clock({ size = 20, color = '#fff' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color, 2.2)}>
+      <Circle cx={12} cy={12} r={8.5} />
+      <Path d="M12 7.5V12l3 2" />
     </Svg>
   );
 }

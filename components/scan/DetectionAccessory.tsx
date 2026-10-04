@@ -1,12 +1,12 @@
 /**
  * Live detection pill (tab bar bottom accessory):
  *   [status disc]  Coffee leaf rust
- *                  92% · act within 3 days          [pin → log to map]
+ *                  92% · act within 3 days          [● pin → log to map]
  *
  * AR mode: sits above the full tab bar. Camera mode: glides down beside the
  * minimized tab bar and switches to its compact copy. Details mode: slides
  * away under the sheet. Content cross-slides when the detected disease changes;
- * the pin morphs into a check once the issue is logged.
+ * the emerald pin disc morphs into a check once the issue is logged.
  */
 
 import React, { useEffect } from 'react';
@@ -97,7 +97,7 @@ export default function DetectionAccessory({ mode, disease, confidence, logState
       : compact ? 'Scanning…' : 'Hold steady — scanning automatically';
 
   return (
-    <Glass radius={29} style={[styles.bar, barStyle]} pointerEvents={hidden ? 'none' : 'auto'}>
+    <Glass radius={ACCESSORY_HEIGHT / 2} tone="light" style={[styles.bar, barStyle]} pointerEvents={hidden ? 'none' : 'auto'}>
       <PressableScale
         pressedScale={0.97}
         onPress={onOpen}
@@ -112,10 +112,10 @@ export default function DetectionAccessory({ mode, disease, confidence, logState
       >
         <Animated.View key={`${disease?.id ?? 'none'}-${compact}`} entering={enter} exiting={exit} style={styles.content}>
           {kind ? (
-            <StatusDisc size={compact ? 32 : 34} color={tint} kind={kind} />
+            <StatusDisc size={compact ? 32 : 36} color={tint} kind={kind} />
           ) : (
             <View style={styles.searching}>
-              <Leaf size={20} color={g.textSecondary} />
+              <Leaf size={20} color={g.accent} />
             </View>
           )}
           <View style={styles.texts}>
@@ -138,9 +138,9 @@ export default function DetectionAccessory({ mode, disease, confidence, logState
               <Animated.View entering={ZoomIn.springify().damping(16).stiffness(260)} style={[StyleSheet.absoluteFill, styles.pinSaved]} />
             )}
             <Animated.View key={logState} entering={ZoomIn.springify().damping(14).stiffness(300)} exiting={ZoomOut.duration(120)}>
-              {logState === 'idle' && <MapPin color={g.pin} hole={g.pinHole} />}
-              {logState === 'saving' && <ActivityIndicator color={g.text} />}
-              {logState === 'saved' && <Check color={colors.white} />}
+              {logState === 'idle' && <MapPin color={colors.onEmerald} hole={colors.emerald} />}
+              {logState === 'saving' && <ActivityIndicator color={colors.onEmerald} />}
+              {logState === 'saved' && <Check color={colors.onEmerald} />}
             </Animated.View>
           </PressableScale>
         </Animated.View>
@@ -168,16 +168,16 @@ const useStyles = makeStyles((c, g) => ({
   main: { flex: 1, height: ACCESSORY_HEIGHT, justifyContent: 'center' },
   content: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   searching: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: g.searching,
+    backgroundColor: colors.emeraldTint,
   },
   texts: { flex: 1, minWidth: 0 },
-  title: { color: g.text, fontSize: 17, fontWeight: '600', lineHeight: 20 },
+  title: { color: g.text, fontSize: 17, fontWeight: '700', lineHeight: 20 },
   subtitle: { color: g.textSecondary, fontSize: 14, lineHeight: 18 },
-  pin: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
-  pinSaved: { borderRadius: 23, backgroundColor: '#30D158' },
+  pin: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.emerald },
+  pinSaved: { borderRadius: 24, backgroundColor: colors.emeraldBright },
 }));

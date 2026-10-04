@@ -47,7 +47,7 @@ If `confidence < confidenceThreshold` (default 0.60), always return `diseaseId: 
 ## UI / UX rules
 
 - **Large touch targets**: buttons must be at least 44 × 44 dp. Noor may be wearing gloves or have rough hands.
-- **High contrast**: use the existing green `#2D6A4F` palette. Do not introduce low-contrast text.
+- **Brand palette** (`lib/theme.ts`, from the AgriOS logo): the app is dark-only. Grounds are warm near-black, cards and controls are pods in the logo tile colour `#1C1813`, text is cream `#F2EAD8`. The primary action and the selected state are bright emerald `#239B6D` with near-black content on it (cream on emerald fails contrast); secondary fills are deep emerald `#33644C` with cream content. Use `status.*` for semantic colours and `onColor()` to pick the text colour on any solid fill. Do not introduce low-contrast text.
 - **Icons over text**: status and severity are always shown with both a colour and an icon, never colour alone (accounts for colour blindness).
 - **Progressive disclosure**: show the most critical info first (disease name + "Do this now"). Detailed treatment and soil data are below the fold.
 - **No onboarding**: assume zero training. The UI must be self-evident from first open.
@@ -175,7 +175,7 @@ Data flow (when internet available):
 | `assets/model/` | TFLite model + labels.json (gitignored, must be trained) |
 | `components/advisory/AdvisorySheet.tsx` | Disease detail sheet (medium/full detents), log-to-map |
 | `lib/useLogIssue.ts`, `lib/plants.ts` | User-initiated logging + GPS plant association (5 m) |
-| `lib/theme.ts`, `components/glass/` | Liquid Glass design system, light/dark palettes, motion tokens |
+| `lib/theme.ts`, `components/glass/` | Emerald-on-soil design tokens (dark-only), glass pods, segmented controls, motion tokens |
 | `components/SpeechInput.tsx` | Voice input UI, language picker |
 | `lib/voice.ts`, `lib/voicePacks.ts` | Advisory playback chain; voice-pack download/install |
 | `app/(tabs)/settings.tsx` | Settings: voice & language packs |

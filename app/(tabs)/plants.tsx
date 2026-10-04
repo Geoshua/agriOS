@@ -2,31 +2,38 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { Href, router, useFocusEffect } from 'expo-router';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
 import { getAllActions, getAllIssues, getAllPlants, PlantRecord } from '../../lib/db';
 import { computeInsight, HealthLevel, Insight, Suggestion, Trend } from '../../lib/insights';
 import { loadRegionalStats, localOutcomeStats } from '../../lib/outcomes';
 import { plantLabel } from '../../lib/plants';
 import { FIELD_BLOCKS, useShambaStore } from '../../lib/store';
-import { makeStyles, useTheme } from '../../lib/theme';
+import { colors, makeStyles, status, useTheme } from '../../lib/theme';
 import { useChromeInsets } from '../../lib/layout';
 import ScreenTransition from '../../components/glass/ScreenTransition';
 import PressableScale from '../../components/glass/PressableScale';
-import { Leaf } from '../../components/glass/Icons';
+import BrandMark from '../../components/glass/BrandMark';
+import { ChevronRight, Leaf, Minus, Sparkle, TrendDown, TrendUp } from '../../components/glass/Icons';
 import { CONFIDENCE_WORD, HealthRing, LEVEL_COLOR, LEVEL_WORD, TREND_WORD } from '../../components/insights/Visuals';
 import TasksSummary from '../../components/tasks/TasksSummary';
 
 const layoutTransition = LinearTransition.springify().damping(24).stiffness(220);
 const enter = (i: number) => FadeInDown.duration(360).delay(60 + i * 60);
 
-const URGENCY_COLOR: Record<Suggestion['urgency'], string> = { now: '#D70015', soon: '#D86A00', routine: '#248A3D' };
+const URGENCY_COLOR: Record<Suggestion['urgency'], string> = { now: status.danger, soon: status.warning, routine: status.goodText };
 const LEVEL_RANK: Record<HealthLevel, number> = { sick: 0, watch: 1, good: 2, unknown: 3 };
-const TREND_ICON: Record<Trend, { name: keyof typeof Ionicons.glyphMap; color: string }> = {
-  improving: { name: 'trending-up', color: '#248A3D' },
-  worsening: { name: 'trending-down', color: '#D70015' },
-  stable: { name: 'remove', color: '#8E8E93' },
-  new: { name: 'sparkles-outline', color: '#8E8E93' },
+const TREND_COLOR: Record<Trend, string> = {
+  improving: status.goodText,
+  worsening: status.danger,
+  stable: status.neutral,
+  new: status.neutral,
 };
+
+function TrendGlyph({ trend, size, color }: { trend: Trend; size: number; color: string }) {
+  if (trend === 'improving') return <TrendUp size={size} color={color} />;
+  if (trend === 'worsening') return <TrendDown size={size} color={color} />;
+  if (trend === 'stable') return <Minus size={size} color={color} />;
+  return <Sparkle size={size} color={color} />;
+}
 
 interface BlockRow {
   block: string;
@@ -133,8 +140,11 @@ export default function PlantsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Animated.View entering={enter(0)} style={styles.header}>
-          <Text style={styles.title} accessibilityRole="header">Plants</Text>
-          <Text style={styles.subtitle}>{subtitle}</Text>
+          <BrandMark size={48} />
+          <View style={styles.headerText}>
+            <Text style={styles.title} accessibilityRole="header">Plants</Text>
+            <Text style={styles.subtitle}>{subtitle}</Text>
+          </View>
         </Animated.View>
 
         <Animated.View entering={enter(1)} layout={layoutTransition}>
@@ -157,7 +167,7 @@ export default function PlantsScreen() {
           {loaded && trees.length === 0 ? (
             <Animated.View entering={FadeIn.duration(300)} style={styles.empty}>
               <View style={styles.emptyArt}>
-                <Leaf size={44} color={c.checkBorder} />
+                <Leaf size={44} color={colors.emeraldBright} />
               </View>
               <Text style={styles.emptyTitle}>No tagged trees yet.</Text>
               <Text style={styles.emptyBody}>After you log a scan, tap ‘Tag to a tree’ to start tracking a tree.</Text>
@@ -201,7 +211,7 @@ function BlockCard({ row }: { row: BlockRow }) {
         </View>
       </View>
       {health.scansUsed > 0 && <TrendLine trend={insight.trend} />}
-      <Text style={[styles.blockNext, { color: top ? URGENCY_COLOR[top.urgency] : '#248A3D' }]} numberOfLines={2}>
+      <Text style={[styles.blockNext, { color: top ? URGENCY_COLOR[top.urgency] : status.goodText }]} numberOfLines={2}>
         {top ? top.title : 'All good'}
       </Text>
       <Text style={styles.meta} numberOfLines={1}>
@@ -235,7 +245,7 @@ function TreeRowView({ row }: { row: TreeRow }) {
             </View>
           )}
         </View>
-        <Text style={[styles.treeNext, { color: top ? URGENCY_COLOR[top.urgency] : '#248A3D' }]} numberOfLines={1}>
+        <Text style={[styles.treeNext, { color: top ? URGENCY_COLOR[top.urgency] : status.goodText }]} numberOfLines={1}>
           {top ? top.title : 'All good'}
         </Text>
         <View style={styles.treeMetaRow}>
@@ -245,39 +255,40 @@ function TreeRowView({ row }: { row: TreeRow }) {
           </Text>
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={c.labelTertiary} />
+      <ChevronRight size={18} color={c.labelTertiary} />
     </PressableScale>
   );
 }
 
 function TrendLine({ trend, small }: { trend: Trend; small?: boolean }) {
   const styles = useStyles();
-  const icon = TREND_ICON[trend];
+  const color = TREND_COLOR[trend];
   return (
     <View style={styles.trend}>
-      <Ionicons name={icon.name} size={small ? 14 : 16} color={icon.color} />
-      <Text style={[small ? styles.trendTextSmall : styles.trendText, { color: icon.color }]}>{TREND_WORD[trend]}</Text>
+      <TrendGlyph trend={trend} size={small ? 14 : 16} color={color} />
+      <Text style={[small ? styles.trendTextSmall : styles.trendText, { color }]}>{TREND_WORD[trend]}</Text>
     </View>
   );
 }
 
 const useStyles = makeStyles((c) => ({
   content: { paddingHorizontal: 16, gap: 22 },
-  header: { gap: 2, paddingHorizontal: 4 },
-  title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.7, lineHeight: 40, color: c.label },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4 },
+  headerText: { flex: 1, gap: 2 },
+  title: { fontSize: 34, fontWeight: '800', letterSpacing: -1, lineHeight: 40, color: c.label },
   subtitle: { fontSize: 16, fontWeight: '600', color: c.labelSecondary },
 
   section: { gap: 8 },
-  sectionTitle: { fontSize: 20, fontWeight: '700', paddingHorizontal: 4, color: c.label },
+  sectionTitle: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3, paddingHorizontal: 4, color: c.label },
   group: { borderRadius: 26, backgroundColor: c.card, overflow: 'hidden' },
   separator: { height: 1, backgroundColor: c.separator },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   gridCell: { flexBasis: '47%', flexGrow: 1 },
-  blockCard: { minHeight: 168, padding: 14, gap: 6, borderRadius: 26, backgroundColor: c.card },
+  blockCard: { minHeight: 168, padding: 14, gap: 6, borderRadius: 28, backgroundColor: c.card },
   blockTop: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 2 },
   blockHead: { flex: 1, gap: 1 },
-  blockName: { fontSize: 17, fontWeight: '700', color: c.label },
+  blockName: { fontSize: 17, fontWeight: '800', letterSpacing: -0.2, color: c.label },
   levelWord: { fontSize: 15, fontWeight: '700' },
   blockNext: { fontSize: 15, fontWeight: '600', lineHeight: 20 },
   meta: { fontSize: 13, color: c.labelTertiary, flexShrink: 1 },
@@ -289,14 +300,14 @@ const useStyles = makeStyles((c) => ({
   treeRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 10 },
   treeText: { flex: 1, gap: 2 },
   treeTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  treeName: { fontSize: 17, fontWeight: '600', color: c.label, flexShrink: 1 },
-  blockChip: { minWidth: 24, height: 22, paddingHorizontal: 7, borderRadius: 11, backgroundColor: c.numberBadge, alignItems: 'center', justifyContent: 'center' },
-  blockChipText: { fontSize: 13, fontWeight: '700', color: c.labelSecondary },
+  treeName: { fontSize: 17, fontWeight: '700', color: c.label, flexShrink: 1 },
+  blockChip: { minWidth: 26, height: 24, paddingHorizontal: 8, borderRadius: 12, backgroundColor: c.numberBadge, alignItems: 'center', justifyContent: 'center' },
+  blockChipText: { fontSize: 13, fontWeight: '800', color: c.accentText },
   treeNext: { fontSize: 15, fontWeight: '600' },
   treeMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
-  empty: { paddingVertical: 28, paddingHorizontal: 24, alignItems: 'center', gap: 6, borderRadius: 26, backgroundColor: c.card },
-  emptyArt: { width: 88, height: 88, borderRadius: 44, backgroundColor: c.groundGrouped, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: c.label },
+  empty: { paddingVertical: 28, paddingHorizontal: 24, alignItems: 'center', gap: 6, borderRadius: 28, backgroundColor: c.card },
+  emptyArt: { width: 88, height: 88, borderRadius: 30, backgroundColor: c.cardRaised, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  emptyTitle: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, color: c.label },
   emptyBody: { fontSize: 16, lineHeight: 23, color: c.labelSecondary, textAlign: 'center' },
 }));

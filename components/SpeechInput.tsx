@@ -11,7 +11,6 @@ import {
   Text,
   TextInput,
   Pressable,
-  StyleSheet,
   ActivityIndicator,
   ScrollView,
   Modal,
@@ -25,9 +24,11 @@ import {
   DEFAULT_LANGUAGE,
 } from '../lib/stt';
 import { RecordingPresets, useAudioRecorder } from 'expo-audio';
-import { useTheme } from '../lib/theme';
+import { colors, makeStyles, status, useTheme } from '../lib/theme';
 import { useShambaStore } from '../lib/store';
 import { getPackInfo } from '../lib/voicePacks';
+import PressableScale from './glass/PressableScale';
+import { Check } from './glass/Icons';
 
 interface SpeechInputProps {
   onTranscript: (text: string) => void;
@@ -43,6 +44,7 @@ export default function SpeechInput({ onTranscript, placeholder = 'Describe what
   const [text, setText] = useState('');
   const [showLangPicker, setShowLangPicker] = useState(false);
   const { c } = useTheme();
+  const styles = useStyles();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recordingRef = useRef(false);
 
@@ -81,16 +83,16 @@ export default function SpeechInput({ onTranscript, placeholder = 'Describe what
   return (
     <View style={styles.container}>
       {/* Language selector */}
-      <Pressable style={styles.langButton} onPress={() => setShowLangPicker(true)}>
-        <Ionicons name="globe-outline" size={14} color="#2D6A4F" />
+      <PressableScale style={styles.langButton} onPress={() => setShowLangPicker(true)} accessibilityRole="button" accessibilityLabel="Voice note language">
+        <Ionicons name="globe-outline" size={14} color={colors.emeraldBright} />
         <Text style={styles.langLabel}>{SUPPORTED_LANGUAGES[language] ?? language}</Text>
-        <Ionicons name="chevron-down" size={12} color="#2D6A4F" />
-      </Pressable>
+        <Ionicons name="chevron-down" size={12} color={colors.emeraldBright} />
+      </PressableScale>
 
       {/* Text input row */}
       <View style={styles.inputRow}>
         <TextInput
-          style={[styles.textInput, { color: c.label, backgroundColor: c.groundGrouped, borderColor: c.separator }]}
+          style={styles.textInput}
           value={text}
           onChangeText={(t) => {
             setText(t);
@@ -101,19 +103,21 @@ export default function SpeechInput({ onTranscript, placeholder = 'Describe what
           multiline
           onSubmitEditing={handleTextSubmit}
         />
-        {/* Mic button */}
+        {/* Mic button — press and hold */}
         <Pressable
           style={[styles.micButton, isRecording && styles.micButtonActive]}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
+          accessibilityRole="button"
+          accessibilityLabel="Hold to record a voice note"
         >
           {isTranscribing ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={colors.onPrimary} />
           ) : (
             <Ionicons
               name={isRecording ? 'radio-button-on' : 'mic'}
-              size={20}
-              color="#fff"
+              size={22}
+              color={colors.onPrimary}
             />
           )}
         </Pressable>
@@ -124,9 +128,10 @@ export default function SpeechInput({ onTranscript, placeholder = 'Describe what
       )}
 
       {/* Language picker modal */}
-      <Modal visible={showLangPicker} transparent animationType="slide">
+      <Modal visible={showLangPicker} transparent animationType="slide" onRequestClose={() => setShowLangPicker(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
+            <View style={styles.grabber} />
             <Text style={styles.modalTitle}>Select language</Text>
             <ScrollView>
               {Object.entries(SUPPORTED_LANGUAGES).map(([code, name]) => (
@@ -134,17 +139,19 @@ export default function SpeechInput({ onTranscript, placeholder = 'Describe what
                   key={code}
                   style={[styles.langOption, code === language && styles.langOptionSelected]}
                   onPress={() => { setLanguage(code); setShowLangPicker(false); }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: code === language }}
                 >
                   <Text style={[styles.langOptionText, code === language && styles.langOptionTextSelected]}>
                     {name}
                   </Text>
-                  {code === language && <Ionicons name="checkmark" size={16} color="#2D6A4F" />}
+                  {code === language && <Check size={18} color={colors.emeraldBright} />}
                 </Pressable>
               ))}
             </ScrollView>
-            <Pressable style={styles.modalClose} onPress={() => setShowLangPicker(false)}>
+            <PressableScale style={styles.modalClose} onPress={() => setShowLangPicker(false)} accessibilityRole="button">
               <Text style={styles.modalCloseText}>Cancel</Text>
-            </Pressable>
+            </PressableScale>
           </View>
         </View>
       </Modal>
@@ -152,72 +159,74 @@ export default function SpeechInput({ onTranscript, placeholder = 'Describe what
   );
 }
 
-const styles = StyleSheet.create({
-  container: { gap: 6 },
+const useStyles = makeStyles((c) => ({
+  container: { gap: 8 },
   langButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: '#F0FDF4',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
+    minHeight: 32,
+    paddingHorizontal: 10,
+    backgroundColor: colors.emeraldTint,
+    borderRadius: 16,
   },
-  langLabel: { fontSize: 12, color: '#2D6A4F', fontWeight: '500' },
+  langLabel: { fontSize: 13, color: colors.emeraldBright, fontWeight: '700' },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   textInput: {
     flex: 1,
-    minHeight: 44,
-    maxHeight: 100,
+    minHeight: 48,
+    maxHeight: 110,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: c.label,
+    backgroundColor: c.cardRaised,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#111827',
-    backgroundColor: '#F9FAFB',
+    borderColor: c.separator,
   },
   micButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#2D6A4F',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  micButtonActive: { backgroundColor: '#DC2626' },
-  hint: { fontSize: 11, color: '#6B7280', textAlign: 'center' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  micButtonActive: { backgroundColor: status.danger },
+  hint: { fontSize: 12, color: c.labelTertiary, textAlign: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: c.card,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     padding: 20,
+    paddingTop: 10,
     maxHeight: '75%',
+    gap: 8,
   },
-  modalTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12, color: '#111827' },
+  grabber: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3, backgroundColor: c.fillStrong, marginBottom: 6 },
+  modalTitle: { fontSize: 20, fontWeight: '700', marginBottom: 6, color: c.label },
   langOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E5E7EB',
+    minHeight: 48,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 16,
   },
-  langOptionSelected: { backgroundColor: '#F0FDF4' },
-  langOptionText: { fontSize: 14, color: '#374151' },
-  langOptionTextSelected: { color: '#2D6A4F', fontWeight: '600' },
+  langOptionSelected: { backgroundColor: colors.emeraldTint },
+  langOptionText: { fontSize: 16, color: c.label },
+  langOptionTextSelected: { color: colors.emeraldBright, fontWeight: '700' },
   modalClose: {
-    marginTop: 12,
-    paddingVertical: 14,
+    marginTop: 8,
+    minHeight: 50,
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 10,
+    justifyContent: 'center',
+    backgroundColor: c.fill,
+    borderRadius: 25,
   },
-  modalCloseText: { fontSize: 14, color: '#374151', fontWeight: '500' },
-});
+  modalCloseText: { fontSize: 16, color: c.label, fontWeight: '700' },
+}));

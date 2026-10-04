@@ -14,6 +14,7 @@ import { classifyWithTflite, TFLITE_AVAILABLE } from '../lib/tflite';
 import { answerQuestion, getResponse, Intent } from '../lib/advisor';
 import diseasesData from '../assets/diseases.json';
 import AskAdvisor from '../components/advisory/AskAdvisor';
+import { colors } from '../lib/theme';
 
 const FOLDER_TO_ID: Record<string, string> = {
   rust: 'coffee_leaf_rust', miner: 'coffee_leaf_miner', phoma: 'coffee_phoma',
@@ -90,13 +91,13 @@ export default function DevTest() {
   }, [run]);
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#fff' }} contentContainerStyle={{ padding: 16, paddingTop: 60, gap: 12 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.ground }} contentContainerStyle={{ padding: 16, paddingTop: 60, gap: 12 }}>
       {/* The real Ask UI, for a visual check (rust diagnosis) */}
       <AskAdvisor diseaseId="coffee_leaf_rust" />
-      <Pressable onPress={() => setRun((r) => r + 1)} style={{ minHeight: 48, borderRadius: 24, backgroundColor: '#2D6A4F', alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Run end-to-end test</Text>
+      <Pressable onPress={() => setRun((r) => r + 1)} style={{ minHeight: 48, borderRadius: 24, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: colors.onPrimary, fontSize: 16, fontWeight: '700' }}>Run end-to-end test</Text>
       </Pressable>
-      {lines.map((l, i) => <Text key={i} style={{ fontSize: 12, fontFamily: 'monospace', color: '#000' }}>{l}</Text>)}
+      {lines.map((l, i) => <Text key={i} style={{ fontSize: 12, fontFamily: 'monospace', color: colors.cream }}>{l}</Text>)}
     </ScrollView>
   );
 }

@@ -34,7 +34,7 @@ import SpeechInput from '../SpeechInput';
 import AskAdvisor from './AskAdvisor';
 import ActionLogger, { CARE_TYPES } from '../insights/ActionLogger';
 import { Checklist, LogButton, NumberedList, SeverityChip, toSteps, useVoice, VoiceBar } from './parts';
-import { makeStyles, sentenceCase, spring, useTheme } from '../../lib/theme';
+import { colors, makeStyles, sentenceCase, spring, useTheme } from '../../lib/theme';
 import { withAlpha } from '../../lib/useTween';
 import type { LogState } from '../../lib/useLogIssue';
 import { useShambaStore } from '../../lib/store';
@@ -250,8 +250,8 @@ export default function AdvisorySheet({ disease: liveDisease, confidence: liveCo
         <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
           <Defs>
             <RadialGradient id="sheetHi" cx="25%" cy="0%" rx="120%" ry="50%" fx="25%" fy="0%">
-              <Stop offset="0" stopColor="#fff" stopOpacity={0.75} />
-              <Stop offset="0.55" stopColor="#fff" stopOpacity={0} />
+              <Stop offset="0" stopColor="#F2EAD8" stopOpacity={0.1} />
+              <Stop offset="0.55" stopColor="#F2EAD8" stopOpacity={0} />
             </RadialGradient>
           </Defs>
           <Rect x="0" y="0" width="100%" height="100%" fill="url(#sheetHi)" />
@@ -287,9 +287,11 @@ export default function AdvisorySheet({ disease: liveDisease, confidence: liveCo
           <View style={styles.doNow}>
             <Text style={styles.doNowTitle}>Do This Now</Text>
             {immediate.slice(0, 2).map((step, i) => (
-              <View key={i} style={styles.doNowRow}>
-                <Text style={[styles.doNowNumber, { color: c.label }]}>{i + 1}</Text>
-                <Text style={styles.doNowText} numberOfLines={2}>{step}</Text>
+              <View key={i} style={[styles.doNowRow, i === 0 ? styles.doNowRowPrimary : styles.doNowRowSecondary]}>
+                <View style={[styles.doNowNumber, i === 0 ? styles.doNowNumberPrimary : styles.doNowNumberSecondary]}>
+                  <Text style={[styles.doNowNumberText, { color: i === 0 ? colors.onPrimary : colors.cream }]}>{i + 1}</Text>
+                </View>
+                <Text style={[styles.doNowText, { color: i === 0 ? colors.onPrimary : colors.cream }]} numberOfLines={2}>{step}</Text>
               </View>
             ))}
           </View>
@@ -497,18 +499,23 @@ const useStyles = makeStyles((c, g) => ({
 
   medium: { flex: 1, paddingHorizontal: 18, paddingBottom: 16, gap: 14 },
   dragZone: { gap: 14 },
-  grabber: { alignSelf: 'center', marginTop: 8, width: 36, height: 5, borderRadius: 3, backgroundColor: 'rgba(60,60,67,0.3)' },
+  grabber: { alignSelf: 'center', marginTop: 8, width: 36, height: 5, borderRadius: 3, backgroundColor: 'rgba(242,234,216,0.24)' },
   mediumHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: -6 },
   closeButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: c.fillStrong },
   titleBlock: { gap: 2 },
-  titleMedium: { fontSize: 28, fontWeight: '700', letterSpacing: -0.5, color: c.label },
+  titleMedium: { fontSize: 28, fontWeight: '800', letterSpacing: -0.6, color: c.label },
   subtitle: { fontSize: 16, color: c.labelSecondary },
   italic: { fontStyle: 'italic' },
-  doNow: { gap: 6 },
-  doNowTitle: { fontSize: 17, fontWeight: '700', color: c.label },
-  doNowRow: { flexDirection: 'row', gap: 8 },
-  doNowNumber: { fontSize: 16, fontWeight: '700', lineHeight: 22 },
-  doNowText: { flex: 1, fontSize: 16, lineHeight: 22, color: c.label },
+  doNow: { gap: 8 },
+  doNowTitle: { fontSize: 17, fontWeight: '700', color: c.label, paddingHorizontal: 4 },
+  doNowRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingLeft: 8, paddingRight: 16, paddingVertical: 8, borderRadius: 28 },
+  doNowRowPrimary: { backgroundColor: colors.primary },
+  doNowRowSecondary: { backgroundColor: colors.emeraldDeep },
+  doNowNumber: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  doNowNumberPrimary: { backgroundColor: 'rgba(14,12,8,0.16)' },
+  doNowNumberSecondary: { backgroundColor: 'rgba(242,234,216,0.14)' },
+  doNowNumberText: { fontSize: 17, fontWeight: '800' },
+  doNowText: { flex: 1, fontSize: 16, lineHeight: 21, fontWeight: '600' },
   mediumActions: { marginTop: 'auto', flexDirection: 'row', gap: 10 },
   moreButton: {
     height: 54,
@@ -517,16 +524,16 @@ const useStyles = makeStyles((c, g) => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: c.fill,
+    backgroundColor: c.fillStrong,
   },
-  moreText: { fontSize: 17, fontWeight: '600', color: c.label },
+  moreText: { fontSize: 17, fontWeight: '700', color: c.label },
 
   fullHeader: { height: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
   headerButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: c.fill },
-  headerTitle: { fontSize: 17, fontWeight: '600', color: c.label },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: c.label },
   fullContent: { paddingHorizontal: 16, paddingTop: 4, gap: 18 },
   fullTitleBlock: { gap: 8, paddingHorizontal: 4 },
-  titleFull: { fontSize: 32, fontWeight: '700', letterSpacing: -0.6, lineHeight: 36, color: c.label },
+  titleFull: { fontSize: 32, fontWeight: '800', letterSpacing: -0.8, lineHeight: 36, color: c.label },
   section: { gap: 8 },
   sectionTitle: { fontSize: 20, fontWeight: '700', paddingHorizontal: 4, color: c.label },
   card: { padding: 16, borderRadius: 26, backgroundColor: c.card, fontSize: 17, lineHeight: 25, color: c.labelStrong, overflow: 'hidden' },
@@ -536,7 +543,7 @@ const useStyles = makeStyles((c, g) => ({
   soilLine: { fontSize: 16, lineHeight: 23, color: c.labelStrong },
   soilMeta: { fontSize: 13, color: c.labelTertiary },
   impact: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', padding: 16, borderRadius: 26, backgroundColor: c.card },
-  impactIcon: { width: 32, height: 32, borderRadius: 9, backgroundColor: '#C93400', alignItems: 'center', justifyContent: 'center' },
+  impactIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#D7362A', alignItems: 'center', justifyContent: 'center' },
   impactTitle: { fontSize: 17, fontWeight: '600', color: c.label },
   impactText: { fontSize: 16, lineHeight: 23, color: c.labelSecondary },
   offloadButton: {
@@ -544,10 +551,10 @@ const useStyles = makeStyles((c, g) => ({
     borderRadius: 27,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: c.fill,
+    backgroundColor: colors.emeraldDeep,
   },
   offloadButtonDone: { opacity: 0.65 },
-  offloadText: { fontSize: 17, fontWeight: '600', color: c.label },
+  offloadText: { fontSize: 17, fontWeight: '700', color: colors.cream },
   offloadHint: { fontSize: 14, lineHeight: 20, color: c.labelSecondary, paddingHorizontal: 4 },
   fade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 130 },
   pinnedLog: { position: 'absolute', left: 20, right: 20 },

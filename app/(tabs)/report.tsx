@@ -3,19 +3,19 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native
 import { Href, router, useFocusEffect } from 'expo-router';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { Ionicons } from '@expo/vector-icons';
 import { ActionType, getAllActions, getAllIssues, getAllPlants, getTodayIssues, IssueRecord, PlantRecord } from '../../lib/db';
 import { computeInsight, Insight } from '../../lib/insights';
 import { localOutcomeStats } from '../../lib/outcomes';
 import { plantLabel } from '../../lib/plants';
 import { FIELD_BLOCKS, useShambaStore } from '../../lib/store';
 import { ACTION_LABEL, HealthRing, LEVEL_COLOR, LEVEL_WORD } from '../../components/insights/Visuals';
-import { colors, makeStyles, sentenceCase, severityBadge, severityPin, useTheme } from '../../lib/theme';
+import { colors, makeStyles, sentenceCase, severityBadge, severityPin, status, useTheme } from '../../lib/theme';
 import { useTween } from '../../lib/useTween';
 import { useChromeInsets } from '../../lib/layout';
 import ScreenTransition from '../../components/glass/ScreenTransition';
 import PressableScale from '../../components/glass/PressableScale';
-import { Leaf, Locate, ScanFrame, Sun } from '../../components/glass/Icons';
+import BrandMark from '../../components/glass/BrandMark';
+import { CheckCircle, ChevronRight, Clock, Leaf, Locate, Repeat, ScanFrame, Sun } from '../../components/glass/Icons';
 
 const layoutTransition = LinearTransition.springify().damping(24).stiffness(220);
 const enter = (i: number) => FadeInDown.duration(360).delay(60 + i * 60);
@@ -86,19 +86,22 @@ export default function ReportScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Animated.View entering={FadeIn.duration(300)} style={styles.updated}>
-          <Sun />
+          <Sun color={c.labelTertiary} />
           <Text style={styles.updatedText}>{empty ? `Pull to refresh · updated ${updated}` : `Updated ${updated}`}</Text>
         </Animated.View>
 
         <Animated.View entering={enter(0)} style={styles.header}>
-          <Text style={styles.date}>{today}</Text>
-          <Text style={styles.title} accessibilityRole="header">Today</Text>
+          <BrandMark size={48} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={styles.date}>{today}</Text>
+            <Text style={styles.title} accessibilityRole="header">Today</Text>
+          </View>
         </Animated.View>
 
         <Animated.View entering={enter(1)} style={styles.tiles}>
-          <StatTile value={issues.length} label="Scans" accent={colors.primary} color={c.label} muted={empty} />
-          <StatTile value={urgentCount} label="Urgent" accent="#D70015" color={c.statUrgent} muted={empty} />
-          <StatTile value={healthyCount} label="Healthy" accent="#248A3D" color={c.statHealthy} muted={empty} />
+          <StatTile value={issues.length} label="Scans" accent={colors.emeraldBright} color={c.label} muted={empty} />
+          <StatTile value={urgentCount} label="Urgent" accent={status.danger} color={c.statUrgent} muted={empty} />
+          <StatTile value={healthyCount} label="Healthy" accent={colors.emerald} color={c.statHealthy} muted={empty} />
         </Animated.View>
 
         {farm && <FarmInsightsSection farm={farm} startIndex={2} />}
@@ -106,12 +109,12 @@ export default function ReportScreen() {
         {empty ? (
           <Animated.View entering={enter(6)} style={styles.empty}>
             <View style={styles.emptyArt}>
-              <Leaf size={56} color={c.checkBorder} />
+              <Leaf size={56} color={colors.emeraldBright} />
             </View>
             <Text style={styles.emptyTitle}>No scans today.</Text>
             <Text style={styles.emptyBody}>Head out to the field.</Text>
             <PressableScale onPress={() => router.navigate('/scan')} style={styles.emptyButton} accessibilityRole="button">
-              <ScanFrame size={20} color={colors.white} />
+              <ScanFrame size={20} color={colors.onPrimary} />
               <Text style={styles.emptyButtonText}>Start scanning</Text>
             </PressableScale>
           </Animated.View>
@@ -195,7 +198,7 @@ export default function ReportScreen() {
 
 const DAY = 86_400_000;
 const STALE_DAYS = 14;
-const URGENCY_COLOR = { now: '#D70015', soon: '#D86A00', routine: '#248A3D' } as const;
+const URGENCY_COLOR = { now: status.danger, soon: status.warning, routine: status.goodText } as const;
 
 interface FarmInsights {
   /** Block with the lowest health score (only blocks that have scans). */
@@ -293,7 +296,7 @@ function FarmInsightsSection({ farm, startIndex }: { farm: FarmInsights; startIn
                 </Text>
               )}
             </View>
-            <Ionicons name="chevron-forward" size={18} color={c.labelTertiary} />
+            <ChevronRight size={18} color={c.labelTertiary} />
           </PressableScale>
         </Animated.View>
       )}
@@ -301,14 +304,16 @@ function FarmInsightsSection({ farm, startIndex }: { farm: FarmInsights; startIn
       {recurring.length > 0 && (
         <Animated.View entering={enter(startIndex + 2)} layout={layoutTransition} style={styles.group}>
           <View style={styles.cardHeader}>
-            <Ionicons name="repeat" size={20} color="#D86A00" />
+            <View style={[styles.cardIcon, { backgroundColor: 'rgba(245,165,36,0.16)' }]}>
+              <Repeat size={18} color={status.warning} />
+            </View>
             <Text style={styles.cardHeaderText}>Coming back</Text>
           </View>
           {recurring.slice(0, 4).map((r) => (
             <View key={r.diseaseId}>
               <View style={[styles.separator, { marginLeft: 16 }]} />
               <View style={styles.listRow}>
-                <View style={[styles.dot10, { backgroundColor: '#D86A00' }]} />
+                <View style={[styles.dot10, { backgroundColor: status.warning }]} />
                 <Text style={styles.listName} numberOfLines={1}>{sentenceCase(r.name)}</Text>
                 <Text style={styles.listMeta}>Block {r.blocks.join(', ')}</Text>
               </View>
@@ -320,7 +325,9 @@ function FarmInsightsSection({ farm, startIndex }: { farm: FarmInsights; startIn
       {worked.length > 0 && (
         <Animated.View entering={enter(startIndex + 3)} layout={layoutTransition} style={styles.group}>
           <View style={styles.cardHeader}>
-            <Ionicons name="checkmark-circle" size={20} color="#248A3D" />
+            <View style={[styles.cardIcon, { backgroundColor: colors.emeraldTint }]}>
+              <CheckCircle size={18} color={colors.emeraldBright} />
+            </View>
             <Text style={styles.cardHeaderText}>What worked on your farm</Text>
           </View>
           {worked.map((w) => (
@@ -343,7 +350,9 @@ function FarmInsightsSection({ farm, startIndex }: { farm: FarmInsights; startIn
       {unchecked.length > 0 && (
         <Animated.View entering={enter(startIndex + 4)} layout={layoutTransition} style={styles.group}>
           <View style={styles.cardHeader}>
-            <Ionicons name="time-outline" size={20} color={c.labelSecondary} />
+            <View style={[styles.cardIcon, { backgroundColor: c.fill }]}>
+              <Clock size={18} color={c.labelSecondary} />
+            </View>
             <Text style={styles.cardHeaderText}>
               {unchecked.length} {unchecked.length === 1 ? 'tree' : 'trees'} not checked for {STALE_DAYS}+ days
             </Text>
@@ -358,13 +367,13 @@ function FarmInsightsSection({ farm, startIndex }: { farm: FarmInsights; startIn
                 accessibilityRole="button"
                 accessibilityLabel={`${plantLabel(u.plant)}, ${u.days == null ? 'never checked' : `last checked ${u.days} days ago`}`}
               >
-                <Leaf size={18} color={colors.primary} />
+                <Leaf size={18} color={colors.emeraldBright} />
                 <Text style={styles.listName} numberOfLines={1}>
                   {plantLabel(u.plant)}
                   {u.plant.block ? <Text style={styles.listMeta}>{`  Block ${u.plant.block}`}</Text> : null}
                 </Text>
                 <Text style={styles.listMeta}>{u.days == null ? 'Never' : `${u.days} days`}</Text>
-                <Ionicons name="chevron-forward" size={16} color={c.labelTertiary} />
+                <ChevronRight size={16} color={c.labelTertiary} />
               </PressableScale>
             </View>
           ))}
@@ -382,9 +391,11 @@ function StatTile({ value, label, accent, color, muted }: { value: number; label
   const shown = Math.round(useTween(value, 700, 0));
   return (
     <View style={styles.tile} accessible accessibilityLabel={`${value} ${label}`}>
-      <View style={[styles.tileAccent, { backgroundColor: accent }]} />
+      <View style={styles.tileHead}>
+        <Text style={styles.tileLabel}>{label}</Text>
+        <View style={[styles.tileDot, { backgroundColor: muted ? c.fillStrong : accent }]} />
+      </View>
       <Text style={[styles.tileValue, { color: muted ? c.labelTertiary : color }]}>{shown}</Text>
-      <Text style={styles.tileLabel}>{label}</Text>
     </View>
   );
 }
@@ -393,60 +404,62 @@ const useStyles = makeStyles((c) => ({
   content: { paddingHorizontal: 16, gap: 22 },
   updated: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   updatedText: { fontSize: 13, color: c.labelTertiary },
-  header: { gap: 2, paddingHorizontal: 4 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4 },
   date: { fontSize: 16, fontWeight: '600', color: c.labelSecondary },
-  title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.7, lineHeight: 40, color: c.label },
+  title: { fontSize: 34, fontWeight: '800', letterSpacing: -1, lineHeight: 40, color: c.label },
 
   tiles: { flexDirection: 'row', gap: 10 },
-  tile: { flex: 1, gap: 2, paddingVertical: 14, paddingLeft: 18, paddingRight: 14, borderRadius: 26, backgroundColor: c.card, overflow: 'hidden' },
-  tileAccent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 5 },
-  tileValue: { fontSize: 32, fontWeight: '700', letterSpacing: -0.6, fontVariant: ['tabular-nums'] },
-  tileLabel: { fontSize: 14, color: c.labelSecondary },
+  tile: { flex: 1, gap: 6, paddingVertical: 16, paddingHorizontal: 16, borderRadius: 28, backgroundColor: c.card, overflow: 'hidden' },
+  tileHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  tileDot: { width: 10, height: 10, borderRadius: 5 },
+  tileValue: { fontSize: 36, fontWeight: '800', letterSpacing: -1, lineHeight: 40, fontVariant: ['tabular-nums'] },
+  tileLabel: { fontSize: 13, fontWeight: '700', color: c.labelSecondary, letterSpacing: 0.2 },
 
   section: { gap: 8 },
-  sectionTitle: { fontSize: 20, fontWeight: '700', paddingHorizontal: 4, color: c.label },
+  sectionTitle: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3, paddingHorizontal: 4, color: c.label },
   group: { borderRadius: 26, backgroundColor: c.card, overflow: 'hidden' },
   separator: { height: 1, backgroundColor: c.separator },
 
   foundRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
   dot12: { width: 12, height: 12, borderRadius: 6 },
-  dotEdge: { borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(0,0,0,0.25)' },
+  dotEdge: { borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(242,234,216,0.25)' },
   foundName: { flex: 1, fontSize: 17, color: c.label },
-  badge: { minWidth: 30, height: 28, paddingHorizontal: 10, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { fontSize: 15, fontWeight: '700' },
+  badge: { minWidth: 32, height: 30, paddingHorizontal: 10, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { fontSize: 15, fontWeight: '800' },
 
   timelineRow: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
-  time: { width: 48, fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'], color: c.label },
+  time: { width: 48, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'], color: c.label },
   dot10: { width: 10, height: 10, borderRadius: 5 },
   timelineText: { flex: 1 },
   timelineName: { fontSize: 17, color: c.label },
   timelineMeta: { fontSize: 13, color: c.labelTertiary },
   gps: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  gpsText: { fontSize: 13, fontWeight: '600', color: c.gps },
+  gpsText: { fontSize: 13, fontWeight: '700', color: c.gps },
   noFix: { fontSize: 13, fontWeight: '600', color: c.labelTertiary },
 
   empty: { marginTop: 28, alignItems: 'center', gap: 6 },
-  emptyArt: { width: 120, height: 120, borderRadius: 60, backgroundColor: c.emptyArt, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  emptyTitle: { fontSize: 22, fontWeight: '700', color: c.label },
+  emptyArt: { width: 120, height: 120, borderRadius: 40, backgroundColor: c.emptyArt, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  emptyTitle: { fontSize: 22, fontWeight: '800', letterSpacing: -0.4, color: c.label },
   emptyBody: { fontSize: 16, lineHeight: 24, color: c.labelSecondary },
   emptyButton: {
     marginTop: 14,
-    height: 52,
+    height: 54,
     paddingHorizontal: 24,
-    borderRadius: 26,
+    borderRadius: 27,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     backgroundColor: colors.primary,
   },
-  emptyButtonText: { color: colors.white, fontSize: 16, fontWeight: '600' },
+  emptyButtonText: { color: colors.onPrimary, fontSize: 16, fontWeight: '700' },
 
   insightCard: { minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 14 },
   insightText: { flex: 1, gap: 2 },
   insightKicker: { fontSize: 13, fontWeight: '600', color: c.labelTertiary },
   insightTitle: { fontSize: 18, fontWeight: '700', color: c.label },
   insightBody: { fontSize: 15, lineHeight: 20, fontWeight: '600' },
-  cardHeader: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
+  cardHeader: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14 },
+  cardIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   cardHeaderText: { flex: 1, fontSize: 17, fontWeight: '700', color: c.label },
   listRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 8 },
   listName: { flex: 1, fontSize: 16, color: c.label },

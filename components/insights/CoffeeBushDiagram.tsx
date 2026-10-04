@@ -20,7 +20,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle, Ellipse, G, Line, Path } from 'react-native-svg';
 import type { Zone } from '../../lib/insights';
-import { spring, useTheme } from '../../lib/theme';
+import { colors, spring, status } from '../../lib/theme';
 
 const W = 240;
 const H = 250;
@@ -50,12 +50,10 @@ const LEAVES: [number, number, number][] = [
 ];
 
 export default function CoffeeBushDiagram({ zone, caption, size = 1 }: { zone: Zone | null; caption?: string; size?: number }) {
-  const { scheme } = useTheme();
-  const dark = scheme === 'dark';
-  const leaf = dark ? '#3E8E57' : '#2F7A47';
-  const leafLight = dark ? '#57A86F' : '#4C9A63';
-  const stem = dark ? '#A68A6D' : '#7A5A3C';
-  const soil = dark ? '#5B4636' : '#B48A63';
+  const leaf = '#3E8E57';
+  const leafLight = '#57A86F';
+  const stem = '#A68A6D';
+  const soil = '#5B4636';
 
   const pulse = useSharedValue(0);
   const move = useSharedValue(0);
@@ -146,16 +144,16 @@ function calloutPosition(z: { x: number; y: number; r: number }, scale: number) 
 }
 
 const styles = StyleSheet.create({
-  ring: { position: 'absolute', borderWidth: 3, borderColor: '#FFB800' },
-  core: { position: 'absolute', borderWidth: 2.5, borderColor: '#FFB800', backgroundColor: 'rgba(255,184,0,0.16)' },
+  ring: { position: 'absolute', borderWidth: 3, borderColor: status.warning },
+  core: { position: 'absolute', borderWidth: 2.5, borderColor: status.warning, backgroundColor: 'rgba(245,165,36,0.16)' },
   callout: {
     position: 'absolute',
     width: 130,
     alignItems: 'center',
     paddingVertical: 4,
     paddingHorizontal: 8,
-    borderRadius: 10,
-    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    backgroundColor: colors.podRaised,
   },
-  calloutText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  calloutText: { color: colors.cream, fontSize: 13, fontWeight: '700' },
 });

@@ -63,7 +63,7 @@ export default function AddTaskForm({ plants, onDone }: { plants: PlantRecord[];
       <View style={styles.wrapRow}>
         {QUICK.map((q) => (
           <Chip key={q} on={title === q} onPress={() => setTitle(q)}>
-            <TaskGlyph icon={iconForTitle(q)} size={18} color={title === q ? '#FFFFFF' : c.label} />
+            <TaskGlyph icon={iconForTitle(q)} size={18} color={title === q ? colors.onPrimary : c.label} />
             <Text style={[styles.chipText, title === q && styles.chipTextOn]}>{q}</Text>
           </Chip>
         ))}
@@ -137,11 +137,11 @@ const useStyles = makeStyles((c) => ({
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: c.fill },
   chipOn: { backgroundColor: colors.primary },
   chipText: { fontSize: 16, fontWeight: '600', color: c.label },
-  chipTextOn: { color: '#FFFFFF' },
-  input: { minHeight: 48, borderRadius: 14, paddingHorizontal: 14, fontSize: 17, color: c.label, backgroundColor: c.fill },
+  chipTextOn: { color: colors.onPrimary },
+  input: { minHeight: 48, borderRadius: 24, paddingHorizontal: 16, fontSize: 17, color: c.label, backgroundColor: c.cardRaised, borderWidth: 1, borderColor: c.separator },
   actions: { flexDirection: 'row', gap: 10, marginTop: 6 },
-  btn: { flex: 1, minHeight: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  btn: { flex: 1, minHeight: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   cancel: { backgroundColor: c.fill },
   save: { backgroundColor: colors.primary },
-  btnText: { fontSize: 17, fontWeight: '700', color: '#FFFFFF' },
+  btnText: { fontSize: 17, fontWeight: '700', color: colors.onPrimary },
 }));

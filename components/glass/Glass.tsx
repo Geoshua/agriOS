@@ -1,16 +1,16 @@
 /**
- * Glass — the Liquid Glass material from the design.
+ * Glass — the material for floating chrome and pods.
  *
  * Layers (bottom → top):
- *   1. Backdrop blur
- *   2. Tint fill (dark: rgba(24,24,26,.56), light: rgba(250,250,252,.74))
- *   3. Radial specular highlight from the top-left
- *   4. Rim: bright top edge, hairline sides, dim bottom edge
+ *   1. Backdrop blur (iOS only)
+ *   2. Tint fill — warm near-black, mostly opaque so it reads over any scene
+ *   3. Faint radial highlight from the top-left
+ *   4. Rim: light top edge, hairline sides, dark bottom edge
  * plus a soft drop shadow on iOS.
  *
- * `tone` is either fixed ('dark' | 'light') or a shared value 0→1 that blends
- * dark → light, so a control can change material smoothly (the tab bar does
- * this when moving between the camera and the map/report screens).
+ * `tone` is either fixed ('dark' = translucent chrome over the camera / map,
+ * 'light' = a raised, near-opaque pod) or a shared value 0→1 that blends the
+ * two, so a control can change material smoothly.
  */
 
 import React, { useState } from 'react';
@@ -37,7 +37,7 @@ let gradientSeq = 0;
 
 export default function Glass({ radius, tone: toneProp, style, highlightHeight = '90%', pointerEvents, children }: GlassProps) {
   const theme = useTheme();
-  // Follows the phone's appearance unless a tone is given.
+  // Follows the app appearance unless a tone is given.
   const tone = toneProp ?? theme.tone;
   const animated = typeof tone !== 'string';
   const fixed = animated ? null : glass[tone as GlassTone];
@@ -47,13 +47,13 @@ export default function Glass({ radius, tone: toneProp, style, highlightHeight =
       <View style={[StyleSheet.absoluteFill, { borderRadius: radius, overflow: 'hidden' }]} pointerEvents="none">
         {animated ? (
           <>
-            <Backdrop intensity={GLASS_BLUR} tint="default" />
+            <Backdrop intensity={GLASS_BLUR} tint="dark" />
             <ToneLayer tone={tone as SharedValue<number>} which="dark" radius={radius} highlightHeight={highlightHeight} />
             <ToneLayer tone={tone as SharedValue<number>} which="light" radius={radius} highlightHeight={highlightHeight} />
           </>
         ) : (
           <>
-            <Backdrop intensity={GLASS_BLUR} tint={tone === 'dark' ? 'dark' : 'light'} />
+            <Backdrop intensity={GLASS_BLUR} tint="dark" />
             <Material which={tone as GlassTone} radius={radius} highlightHeight={highlightHeight} />
           </>
         )}
@@ -65,8 +65,8 @@ export default function Glass({ radius, tone: toneProp, style, highlightHeight =
 
 /**
  * Backdrop blur — iOS only. Android blur needs the content behind wrapped in a
- * BlurTargetView, and our backdrops (camera preview, Google Map) are native
- * surfaces it can't capture, so Android glass is a translucent tint instead.
+ * BlurTargetView, and our backdrops (camera preview, map) are native surfaces
+ * it can't capture, so Android glass is the tint alone.
  */
 export function Backdrop({ intensity, tint }: { intensity: number; tint: 'default' | 'dark' | 'light' }) {
   if (Platform.OS !== 'ios') return null;
@@ -91,8 +91,8 @@ function Material({ which, radius, highlightHeight }: { which: GlassTone; radius
       <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
         <Defs>
           <RadialGradient id={id} cx="25%" cy="0%" rx="130%" ry={highlightHeight} fx="25%" fy="0%">
-            <Stop offset="0" stopColor="#fff" stopOpacity={t.highlight} />
-            <Stop offset="0.55" stopColor="#fff" stopOpacity={0} />
+            <Stop offset="0" stopColor="#F2EAD8" stopOpacity={t.highlight} />
+            <Stop offset="0.55" stopColor="#F2EAD8" stopOpacity={0} />
           </RadialGradient>
         </Defs>
         <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
@@ -117,7 +117,7 @@ function Material({ which, radius, highlightHeight }: { which: GlassTone; radius
 
 const styles = StyleSheet.create({
   shadow: Platform.select({
-    ios: { shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 11, shadowOffset: { width: 0, height: 7 } },
+    ios: { shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 8 } },
     default: {},
   }) as ViewStyle,
 });

@@ -11,6 +11,7 @@ import { requireOptionalNativeModule } from 'expo';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import PressableScale from '../glass/PressableScale';
 import Glass from '../glass/Glass';
+import { colors } from '../../lib/theme';
 import { MINI_SIZE, SIDE, useChromeInsets } from '../../lib/layout';
 
 // Builds made before expo-image-picker was added lack the native module;
@@ -38,11 +39,11 @@ export default function GalleryButton({ onPicked }: { onPicked: (uri: string) =>
   return (
     <View style={[styles.wrap, { bottom: miniBottom + MINI_SIZE + 31 }]} pointerEvents="box-none">
       <PressableScale onPress={pick} disabled={busy} accessibilityRole="button" accessibilityLabel="Test a photo from the gallery">
-        <Glass radius={28} style={styles.button}>
+        <Glass radius={28} tone="light" style={styles.button}>
           {busy ? (
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color={colors.cream} />
           ) : (
-            <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={colors.cream} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <Rect x={3} y={4} width={18} height={16} rx={3} />
               <Circle cx={9} cy={10} r={1.8} />
               <Path d="m21 16-5-5-9 9" />
@@ -58,5 +59,5 @@ export default function GalleryButton({ onPicked }: { onPicked: (uri: string) =>
 const styles = StyleSheet.create({
   wrap: { position: 'absolute', left: SIDE + 12, alignItems: 'center', gap: 4 },
   button: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
-  label: { color: '#FFFFFF', fontSize: 13, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 4 },
+  label: { color: colors.cream, fontSize: 13, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 4 },
 });

@@ -37,11 +37,12 @@ import {
   wateringStatus,
 } from '../../lib/watering';
 import { useShambaStore } from '../../lib/store';
-import { colors, makeStyles, useTheme } from '../../lib/theme';
+import { colors, makeStyles, onColor, status as tone, useTheme } from '../../lib/theme';
 import { TASK_COLOR } from './TaskRow';
 
 const DAY = 86_400_000;
-const WATER = '#0A84FF';
+const WATER = tone.water;
+const ON_WATER = onColor(WATER);
 
 export type WateringSubject = { kind: 'block'; block: string } | { kind: 'plant'; id: number; block: string | null };
 
@@ -175,8 +176,8 @@ export default function WateringCard({ subject, title = 'Watering', compact = fa
         <Text style={styles.title} numberOfLines={1}>{title}</Text>
         {loaded && (
           <Animated.View key={dueWord(status)} entering={FadeIn.duration(200)} style={[styles.pill, { backgroundColor: stateColor }]}>
-            {status.dueToday ? <Alert /> : <Check size={14} color="#FFFFFF" />}
-            <Text style={styles.pillText}>{dueWord(status)}</Text>
+            {status.dueToday ? <Alert color={onColor(stateColor)} /> : <Check size={14} color={onColor(stateColor)} />}
+            <Text style={[styles.pillText, { color: onColor(stateColor) }]}>{dueWord(status)}</Text>
           </Animated.View>
         )}
         {compact && (
@@ -196,7 +197,7 @@ export default function WateringCard({ subject, title = 'Watering', compact = fa
       <View style={styles.strip} accessibilityLabel={`${status.timesLast30Days} times in the last 30 days`}>
         {strip.map((s, i) => (
           <View key={i} style={[styles.stripCell, s === 'watered' && { backgroundColor: WATER }, s === 'rained' && { backgroundColor: WATER + '66' }, i === 13 && styles.stripToday]}>
-            {s && <ActionIcon type={s} size={12} color="#FFFFFF" />}
+            {s && <ActionIcon type={s} size={12} color={ON_WATER} />}
           </View>
         ))}
       </View>
@@ -250,8 +251,8 @@ export default function WateringCard({ subject, title = 'Watering', compact = fa
       {/* Log buttons */}
       <View style={styles.buttons}>
         <PressableScale onPress={() => log('watered')} style={[styles.bigBtn, { backgroundColor: WATER }]} accessibilityRole="button" accessibilityLabel="Watered">
-          <ActionIcon type="watered" size={24} color="#FFFFFF" />
-          <Text style={styles.bigBtnText}>Watered</Text>
+          <ActionIcon type="watered" size={24} color={ON_WATER} />
+          <Text style={[styles.bigBtnText, { color: ON_WATER }]}>Watered</Text>
         </PressableScale>
         <PressableScale onPress={() => log('rained')} style={[styles.bigBtn, styles.rainBtn]} accessibilityRole="button" accessibilityLabel="It rained">
           <ActionIcon type="rained" size={24} color={c.label} />
@@ -262,7 +263,7 @@ export default function WateringCard({ subject, title = 'Watering', compact = fa
       {logged && (
         <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(160)} style={styles.toast}>
           <Animated.View entering={ZoomIn.springify().damping(12)}>
-            <Check size={18} color={colors.primary} />
+            <Check size={18} color={colors.emeraldBright} />
           </Animated.View>
           <Text style={styles.toastText}>Saved: {logged.type === 'rained' ? 'It rained' : 'Watered'}</Text>
           <PressableScale onPress={undo} style={styles.undo} accessibilityRole="button" accessibilityLabel="Undo">
@@ -274,9 +275,9 @@ export default function WateringCard({ subject, title = 'Watering', compact = fa
   );
 }
 
-function Alert() {
+function Alert({ color }: { color: string }) {
   return (
-    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth={3} strokeLinecap="round">
+    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={3} strokeLinecap="round">
       <Path d="M12 5v9M12 19h.01" />
     </Svg>
   );
@@ -286,10 +287,10 @@ const useStyles = makeStyles((c) => ({
   card: { padding: 16, borderRadius: 26, backgroundColor: c.card, gap: 12 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
   more: { gap: 12 },
-  dropBadge: { width: 40, height: 40, borderRadius: 13, backgroundColor: WATER + '22', alignItems: 'center', justifyContent: 'center' },
+  dropBadge: { width: 40, height: 40, borderRadius: 20, backgroundColor: WATER + '22', alignItems: 'center', justifyContent: 'center' },
   title: { flex: 1, fontSize: 19, fontWeight: '700', color: c.label },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
-  pillText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 14 },
+  pillText: { fontSize: 14, fontWeight: '800' },
   lastRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   lastText: { fontSize: 17, fontWeight: '600', color: c.label },
   strip: { flexDirection: 'row', gap: 4 },
@@ -304,13 +305,13 @@ const useStyles = makeStyles((c) => ({
   stepValue: { minWidth: 48, alignItems: 'center' },
   stepNumber: { fontSize: 24, fontWeight: '800', color: c.label, fontVariant: ['tabular-nums'] },
   linkBtn: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
-  linkText: { fontSize: 15, fontWeight: '600', color: colors.primary },
+  linkText: { fontSize: 15, fontWeight: '700', color: colors.emeraldBright },
   buttons: { flexDirection: 'row', gap: 10 },
-  bigBtn: { flex: 1, minHeight: 56, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bigBtn: { flex: 1, minHeight: 56, borderRadius: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   rainBtn: { backgroundColor: c.fill },
-  bigBtnText: { fontSize: 17, fontWeight: '700', color: '#FFFFFF' },
-  toast: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 12, borderRadius: 14, backgroundColor: c.fill },
+  bigBtnText: { fontSize: 17, fontWeight: '700', color: c.label },
+  toast: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 12, borderRadius: 22, backgroundColor: c.fill },
   toastText: { flex: 1, fontSize: 15, fontWeight: '600', color: c.label },
   undo: { minHeight: 44, paddingHorizontal: 16, justifyContent: 'center' },
-  undoText: { fontSize: 15, fontWeight: '700', color: colors.primary },
+  undoText: { fontSize: 15, fontWeight: '700', color: colors.emeraldBright },
 }));

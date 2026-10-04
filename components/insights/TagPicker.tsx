@@ -79,8 +79,8 @@ export default function TagPicker({ issueId, block, lat, lng, currentPlantId, on
               accessibilityRole="button"
               accessibilityLabel={`${plantLabel(t.plant)}${t.near ? ', nearest' : ''}`}
             >
-              <Text style={[styles.chipTitle, { color: selected ? '#FFFFFF' : text }]}>{plantLabel(t.plant)}</Text>
-              <Text style={[styles.chipSub, { color: selected ? 'rgba(255,255,255,0.85)' : sub }]}>
+              <Text style={[styles.chipTitle, { color: selected ? colors.onPrimary : text }]}>{plantLabel(t.plant)}</Text>
+              <Text style={[styles.chipSub, { color: selected ? 'rgba(14,12,8,0.72)' : sub }]}>
                 {selected ? 'tagged' : t.near ? 'nearest' : t.distanceM != null ? `${Math.round(t.distanceM)} m` : `Block ${t.plant.block ?? '–'}`}
               </Text>
             </PressableScale>
@@ -98,16 +98,16 @@ export default function TagPicker({ issueId, block, lat, lng, currentPlantId, on
 
 const useStyles = makeStyles((c) => ({
   row: { gap: 8, paddingVertical: 2, paddingRight: 8 },
-  chip: { minHeight: 48, minWidth: 64, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  chipGlass: { backgroundColor: 'rgba(255,255,255,0.14)' },
+  chip: { minHeight: 48, minWidth: 64, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+  chipGlass: { backgroundColor: 'rgba(242,234,216,0.12)' },
   chipCard: { backgroundColor: c.fill },
-  chipNear: { borderWidth: 2, borderColor: colors.primary },
+  chipNear: { borderWidth: 2, borderColor: colors.emeraldBright },
   chipSelected: { backgroundColor: colors.primary },
   chipTitle: { fontSize: 15, fontWeight: '700' },
   chipSub: { fontSize: 12, fontWeight: '500' },
   newChip: { flexDirection: 'row', gap: 4, backgroundColor: colors.primary },
-  newPlus: { color: '#FFFFFF', fontSize: 20, fontWeight: '700', marginTop: -2 },
-  newText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  newPlus: { color: colors.onPrimary, fontSize: 20, fontWeight: '700', marginTop: -2 },
+  newText: { color: colors.onPrimary, fontSize: 15, fontWeight: '700' },
   empty: { justifyContent: 'center', paddingHorizontal: 6 },
   emptyText: { fontSize: 13 },
 }));

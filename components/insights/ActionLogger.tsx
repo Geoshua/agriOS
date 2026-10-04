@@ -71,8 +71,8 @@ export default function ActionLogger({ plantId, block, issueId = null, diseaseId
       <View style={styles.grid}>
         {types.map((t) => (
           <PressableScale key={t} onPress={() => log(t)} style={[styles.button, logged?.type === t && styles.buttonOn]} accessibilityRole="button" accessibilityLabel={ACTION_LABEL[t]}>
-            <ActionIcon type={t} size={26} color={logged?.type === t ? '#FFFFFF' : c.label} />
-            <Text style={[styles.label, logged?.type === t && { color: '#FFFFFF' }]} numberOfLines={2}>
+            <ActionIcon type={t} size={26} color={logged?.type === t ? colors.onPrimary : c.label} />
+            <Text style={[styles.label, logged?.type === t && { color: colors.onPrimary }]} numberOfLines={2}>
               {ACTION_LABEL[t]}
             </Text>
           </PressableScale>
@@ -81,7 +81,7 @@ export default function ActionLogger({ plantId, block, issueId = null, diseaseId
       {logged && (
         <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(160)} style={styles.toast}>
           <Animated.View entering={ZoomIn.springify().damping(12)}>
-            <Check size={18} color={colors.primary} />
+            <Check size={18} color={colors.emeraldBright} />
           </Animated.View>
           <Text style={styles.toastText}>Saved: {ACTION_LABEL[logged.type]}</Text>
           <PressableScale onPress={undo} style={styles.undo} accessibilityRole="button" accessibilityLabel="Undo">
@@ -100,7 +100,7 @@ const useStyles = makeStyles((c) => ({
   button: {
     width: '31.5%',
     minHeight: 76,
-    borderRadius: 18,
+    borderRadius: 22,
     backgroundColor: c.card,
     alignItems: 'center',
     justifyContent: 'center',
@@ -109,7 +109,7 @@ const useStyles = makeStyles((c) => ({
   },
   buttonOn: { backgroundColor: colors.primary },
   label: { fontSize: 13, fontWeight: '600', color: c.label, textAlign: 'center' },
-  toast: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 12, borderRadius: 14, backgroundColor: c.card },
+  toast: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 12, borderRadius: 22, backgroundColor: c.card },
   toastText: { flex: 1, fontSize: 15, fontWeight: '600', color: c.label },
   undo: { minHeight: 44, paddingHorizontal: 16, justifyContent: 'center' },
   undoText: { fontSize: 15, fontWeight: '700', color: c.accentText },

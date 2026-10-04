@@ -19,18 +19,18 @@ import WateringCard from '../components/tasks/WateringCard';
 import AddTaskForm from '../components/tasks/AddTaskForm';
 import { completeItem, deleteItem, snoozeItem, subjectLabel, Undo, useTasks } from '../components/tasks/useTasks';
 import type { TaskItem } from '../lib/tasks';
-import { colors, makeStyles, useTheme } from '../lib/theme';
+import { colors, makeStyles, status, useTheme } from '../lib/theme';
 import { useChromeInsets } from '../lib/layout';
 
 const layout = LinearTransition.springify().damping(24).stiffness(240);
 const enter = (i: number) => FadeInDown.duration(360).delay(60 + Math.min(i, 8) * 60);
 
 const GROUP_COLOR: Record<string, string> = {
-  overdue: '#D70015',
-  today: '#D86A00',
-  week: '#248A3D',
-  later: '#8E8E93',
-  done: '#8E8E93',
+  overdue: status.danger,
+  today: status.warning,
+  week: status.good,
+  later: status.neutral,
+  done: status.neutral,
 };
 
 export default function TasksScreen() {
@@ -143,7 +143,7 @@ export default function TasksScreen() {
             {openCount === 0 && (
               <Animated.View entering={ZoomIn.springify().damping(14)} style={styles.empty}>
                 <View style={styles.emptyCheck}>
-                  <Check size={34} color="#FFFFFF" />
+                  <Check size={34} color={colors.onPrimary} />
                 </View>
                 <Text style={styles.emptyText}>Nothing to do right now</Text>
               </Animated.View>
@@ -160,7 +160,7 @@ export default function TasksScreen() {
 
       <View style={[styles.backRow, { top }]} pointerEvents="box-none">
         <PressableScale onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
-          <Glass radius={22} style={styles.back}>
+          <Glass radius={22} tone="light" style={styles.back}>
             <ChevronLeft color={c.label} />
             <Text style={styles.backText}>Back</Text>
           </Glass>
@@ -169,9 +169,9 @@ export default function TasksScreen() {
 
       {toast && (
         <Animated.View entering={FadeInDown.duration(220)} exiting={FadeOut.duration(160)} style={[styles.toastWrap, { bottom: tabBottom + 8 }]} pointerEvents="box-none">
-          <Glass radius={20} style={styles.toast}>
+          <Glass radius={28} tone="light" style={styles.toast}>
             <Animated.View entering={ZoomIn.springify().damping(12)}>
-              <Check size={20} color={colors.primary} />
+              <Check size={20} color={colors.emeraldBright} />
             </Animated.View>
             <Text style={styles.toastText} numberOfLines={1}>{toast.text}</Text>
             <PressableScale
@@ -196,7 +196,7 @@ export default function TasksScreen() {
 const useStyles = makeStyles((c) => ({
   content: { paddingHorizontal: 16, gap: 22 },
   header: { gap: 2, paddingHorizontal: 4 },
-  title: { fontSize: 34, fontWeight: '800', letterSpacing: -0.6, color: c.label },
+  title: { fontSize: 34, fontWeight: '800', letterSpacing: -1, color: c.label },
   subtitle: { fontSize: 16, color: c.labelSecondary },
   section: { gap: 10 },
   sectionTitle: { fontSize: 20, fontWeight: '700', paddingHorizontal: 4, color: c.label },
@@ -206,18 +206,18 @@ const useStyles = makeStyles((c) => ({
   list: { borderRadius: 22, backgroundColor: c.card, overflow: 'hidden' },
   sep: { height: 1, marginLeft: 68, backgroundColor: c.separator },
   linkBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
-  linkText: { fontSize: 16, fontWeight: '600', color: colors.primary },
+  linkText: { fontSize: 16, fontWeight: '700', color: colors.emeraldBright },
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     minHeight: 56,
-    borderRadius: 18,
+    borderRadius: 28,
     backgroundColor: colors.primary,
   },
-  addPlus: { fontSize: 26, fontWeight: '600', color: '#FFFFFF', marginTop: -3 },
-  addText: { fontSize: 17, fontWeight: '700', color: '#FFFFFF' },
+  addPlus: { fontSize: 26, fontWeight: '600', color: colors.onPrimary, marginTop: -3 },
+  addText: { fontSize: 17, fontWeight: '700', color: colors.onPrimary },
   empty: { alignItems: 'center', gap: 10, paddingVertical: 12 },
   emptyCheck: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   emptyText: { fontSize: 17, fontWeight: '600', color: c.labelSecondary },
@@ -229,5 +229,5 @@ const useStyles = makeStyles((c) => ({
   toast: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 14, minHeight: 56 },
   toastText: { flex: 1, fontSize: 16, fontWeight: '600', color: c.label },
   undo: { minHeight: 48, paddingHorizontal: 18, justifyContent: 'center' },
-  undoText: { fontSize: 16, fontWeight: '700', color: colors.primary },
+  undoText: { fontSize: 16, fontWeight: '700', color: colors.emeraldBright },
 }));

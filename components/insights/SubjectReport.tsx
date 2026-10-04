@@ -24,14 +24,14 @@ import type { Suggestion } from '../../lib/insights';
 import { fetchHistorySummary } from '../../lib/outcomes';
 import { plantLabel } from '../../lib/plants';
 import { LOCAL_SERVER_URL } from '../../lib/config';
-import { colors, makeStyles, sentenceCase, severityPin, useTheme } from '../../lib/theme';
+import { colors, makeStyles, onColor, sentenceCase, severityPin, status, useTheme } from '../../lib/theme';
 import { useChromeInsets } from '../../lib/layout';
 
-// Chip colours chosen for ≥4.5:1 with white text.
+// Chip fills; text colour comes from onColor() so every chip reads ≥4.5:1.
 const URGENCY: Record<Suggestion['urgency'], { word: string; color: string }> = {
-  now: { word: 'Now', color: '#C4170C' },
-  soon: { word: 'This week', color: '#A84A00' },
-  routine: { word: 'When you can', color: '#1E7B3C' },
+  now: { word: 'Now', color: status.danger },
+  soon: { word: 'This week', color: status.warning },
+  routine: { word: 'When you can', color: status.good },
 };
 
 function goBack() {
@@ -66,7 +66,7 @@ export default function SubjectReport({ subject }: { subject: Subject }) {
 
       <View style={[styles.backRow, { top }]} pointerEvents="box-none">
         <PressableScale onPress={goBack} accessibilityRole="button" accessibilityLabel="Back">
-          <Glass radius={22} style={styles.back}>
+          <Glass radius={22} tone="light" style={styles.back}>
             <ChevronLeft color={c.label} />
             <Text style={styles.backText}>Plants</Text>
           </Glass>
@@ -112,7 +112,7 @@ function Report({ data, picked, onPick }: { data: SubjectData; picked: number; o
             </View>
             <Animated.View key={suggestion.id} entering={FadeIn.duration(220)} style={{ gap: 6 }}>
               <View style={[styles.urgency, { backgroundColor: URGENCY[suggestion.urgency].color }]}>
-                <Text style={styles.urgencyText}>{URGENCY[suggestion.urgency].word}</Text>
+                <Text style={[styles.urgencyText, { color: onColor(URGENCY[suggestion.urgency].color) }]}>{URGENCY[suggestion.urgency].word}</Text>
               </View>
               <Text style={styles.sugTitle}>{suggestion.title}</Text>
               <Text style={styles.sugWhy}>{suggestion.why}</Text>
@@ -284,7 +284,7 @@ function OfficerCard({ data }: { data: SubjectData }) {
           <Animated.Text entering={FadeIn.duration(240)} style={styles.summary}>{summary}</Animated.Text>
         ) : (
           <PressableScale onPress={getSummary} disabled={loadingSummary} style={styles.summaryBtn} accessibilityRole="button">
-            {loadingSummary ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.summaryBtnText}>Summarise with the co-op AI</Text>}
+            {loadingSummary ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.summaryBtnText}>Summarise with the co-op AI</Text>}
           </PressableScale>
         )
       ) : null}
@@ -299,15 +299,15 @@ const useStyles = makeStyles((c) => ({
   back: { flexDirection: 'row', alignItems: 'center', gap: 2, height: 44, paddingLeft: 8, paddingRight: 14 },
   backText: { fontSize: 17, fontWeight: '600', color: c.label },
   statusCard: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, borderRadius: 28, backgroundColor: c.card },
-  title: { fontSize: 28, fontWeight: '700', letterSpacing: -0.5, color: c.label },
+  title: { fontSize: 28, fontWeight: '800', letterSpacing: -0.7, color: c.label },
   level: { fontSize: 20, fontWeight: '700' },
   meta: { fontSize: 14, color: c.labelSecondary },
   section: { gap: 8 },
   sectionTitle: { fontSize: 20, fontWeight: '700', paddingHorizontal: 4, color: c.label },
   card: { padding: 16, borderRadius: 26, backgroundColor: c.card, gap: 10 },
   diagramWrap: { alignItems: 'center' },
-  urgency: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 },
-  urgencyText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  urgency: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 13 },
+  urgencyText: { fontSize: 13, fontWeight: '800' },
   sugTitle: { fontSize: 20, fontWeight: '700', color: c.label },
   sugWhy: { fontSize: 16, lineHeight: 23, color: c.labelSecondary },
   evidence: { fontSize: 14, fontWeight: '600', color: c.accentText },
@@ -329,7 +329,7 @@ const useStyles = makeStyles((c) => ({
   officerLine: { fontSize: 14, lineHeight: 20, color: c.labelSecondary },
   officerNote: { fontSize: 13, lineHeight: 18, color: c.labelTertiary, fontStyle: 'italic' },
   summary: { fontSize: 15, lineHeight: 22, color: c.label },
-  summaryBtn: { minHeight: 48, borderRadius: 16, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  summaryBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  summaryBtn: { minHeight: 50, borderRadius: 25, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  summaryBtnText: { color: colors.onPrimary, fontSize: 16, fontWeight: '700' },
 }));
 

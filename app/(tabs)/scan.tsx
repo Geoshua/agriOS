@@ -13,7 +13,7 @@ import { useOffloadQueue } from '../../lib/useOffloadQueue';
 import { colors } from '../../lib/theme';
 import ScreenTransition from '../../components/glass/ScreenTransition';
 import PressableScale from '../../components/glass/PressableScale';
-import { Leaf, LookAround } from '../../components/glass/Icons';
+import { Camera, Emblem, LookAround } from '../../components/glass/Icons';
 import ScanTopBar from '../../components/scan/ScanTopBar';
 import ARSpots from '../../components/scan/ARSpots';
 import CameraGuides from '../../components/scan/CameraGuides';
@@ -185,17 +185,20 @@ export default function ScanScreen() {
 
   if (!permission.granted && !demo) {
     return (
-      <ScreenTransition background={colors.black} statusBar="light">
+      <ScreenTransition background={colors.bg} statusBar="light">
         <View style={styles.permission}>
-          <Leaf size={56} color="rgba(255,255,255,0.6)" />
+          <View style={styles.permissionArt}>
+            <Emblem size={72} />
+          </View>
           <Text style={styles.permissionTitle}>Scan your coffee leaves</Text>
-          <Text style={styles.permissionBody}>agriOS needs the camera to spot rust, miners and other problems on your trees.</Text>
+          <Text style={styles.permissionBody}>AgriOS needs the camera to spot rust, miners and other problems on your trees.</Text>
           <PressableScale onPress={requestPermission} style={styles.permissionButton} accessibilityRole="button">
+            <Camera color={colors.onPrimary} />
             <Text style={styles.permissionButtonText}>Allow camera</Text>
           </PressableScale>
           <PressableScale onPress={() => setDemo(true)} style={styles.demoButton} accessibilityRole="button">
-            <LookAround color={colors.onDark} />
-            <Text style={styles.permissionButtonText}>Try demo scene</Text>
+            <LookAround color={colors.emeraldBright} />
+            <Text style={styles.demoButtonText}>Try demo scene</Text>
           </PressableScale>
         </View>
       </ScreenTransition>
@@ -203,7 +206,7 @@ export default function ScanScreen() {
   }
 
   return (
-    <ScreenTransition background={colors.black} statusBar="light">
+    <ScreenTransition background={colors.bg} statusBar="light">
       {/* CONTENT LAYER: camera + AR annotations */}
       <Animated.View style={[StyleSheet.absoluteFill, styles.cameraWrap, cameraStyle]}>
         {demo ? (
@@ -226,7 +229,7 @@ export default function ScanScreen() {
       {scanMode === 'camera' && !demo && <CaptureButton state={captureState} last={lastCapture} onPress={capture} />}
       {scanMode === 'camera' && !demo && <GalleryButton onPicked={testPhoto} />}
 
-      {/* CONTROL LAYER: Liquid Glass */}
+      {/* CONTROL LAYER: floating pods */}
       <ModeRail
         mode={scanMode}
         detailsEnabled={!!disease}
@@ -289,43 +292,59 @@ export default function ScanScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.black },
-  cameraWrap: { overflow: 'hidden', backgroundColor: colors.black },
+  container: { flex: 1, backgroundColor: colors.bg },
+  cameraWrap: { overflow: 'hidden', backgroundColor: colors.bg },
   dim: { backgroundColor: colors.black },
   permission: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 14 },
-  permissionTitle: { color: colors.onDark, fontSize: 22, fontWeight: '700', textAlign: 'center' },
-  permissionBody: { color: colors.onDarkSecondary, fontSize: 16, lineHeight: 23, textAlign: 'center' },
-  permissionButton: {
-    marginTop: 8,
-    height: 54,
-    paddingHorizontal: 28,
-    borderRadius: 27,
-    backgroundColor: colors.primary,
+  permissionArt: {
+    width: 128,
+    height: 128,
+    borderRadius: 40,
+    backgroundColor: colors.pod,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
   },
-  permissionButtonText: { color: colors.white, fontSize: 17, fontWeight: '600' },
+  permissionTitle: { color: colors.cream, fontSize: 26, fontWeight: '800', letterSpacing: -0.6, textAlign: 'center' },
+  permissionBody: { color: colors.textSecondary, fontSize: 16, lineHeight: 23, textAlign: 'center', maxWidth: 320 },
+  permissionButton: {
+    marginTop: 10,
+    height: 56,
+    paddingHorizontal: 28,
+    borderRadius: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colors.primary,
+  },
+  permissionButtonText: { color: colors.onPrimary, fontSize: 17, fontWeight: '700' },
   demoButton: {
-    height: 54,
+    height: 56,
     paddingHorizontal: 24,
-    borderRadius: 27,
+    borderRadius: 28,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: colors.pod,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
   },
+  demoButtonText: { color: colors.cream, fontSize: 17, fontWeight: '700' },
   networkPill: {
     position: 'absolute',
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(0,0,0,0.48)',
+    gap: 6,
+    backgroundColor: colors.chipScrim,
     borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
   },
-  networkDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#4ADE80' },
-  networkText: { fontSize: 12, fontWeight: '500', color: 'rgba(255,255,255,0.9)' },
+  networkDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.emeraldBright },
+  networkText: { fontSize: 12, fontWeight: '600', color: colors.cream },
 });

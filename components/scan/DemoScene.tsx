@@ -26,6 +26,11 @@ import { useChromeInsets } from '../../lib/layout';
 import sceneMeta from '../../assets/demo-scene/leaves.json';
 
 const PANORAMA = require('../../assets/demo-scene/panorama.jpg');
+// Byte-identical copy used only for cropping. In release builds expo-asset
+// returns a bundled *image* as an Android resource name (no file), which
+// ImageManipulator can't open — every demo frame failed silently. Non-image
+// assets are copied to a real file, so crop from this .bin copy.
+const PANORAMA_FILE = require('../../assets/demo-scene/panorama-crop.bin');
 const PANO_W = sceneMeta.width; // one full turn, px
 const PANO_H = sceneMeta.height;
 const MARGIN = sceneMeta.wrapMargin;
@@ -92,7 +97,7 @@ const DemoScene = forwardRef<DemoSceneHandle, Props>(function DemoScene({ active
 
   const uriRef = useRef<string | null>(null);
   useEffect(() => {
-    Asset.fromModule(PANORAMA)
+    Asset.fromModule(PANORAMA_FILE)
       .downloadAsync()
       .then((a) => { uriRef.current = a.localUri ?? a.uri; })
       .catch(() => {});
@@ -210,7 +215,7 @@ const DemoScene = forwardRef<DemoSceneHandle, Props>(function DemoScene({ active
 
       <Animated.View entering={FadeIn.duration(220)} style={[styles.badgeRow, { top: top + 60 }]} pointerEvents="none">
         <View style={styles.badge}>
-          <LookAround size={18} color={colors.onDark} />
+          <LookAround size={18} color={colors.emeraldBright} />
           <Text style={styles.badgeText}>Demo scene</Text>
           {hasMotion === false && <Text style={styles.badgeHint}>· drag to look</Text>}
         </View>
@@ -222,7 +227,7 @@ const DemoScene = forwardRef<DemoSceneHandle, Props>(function DemoScene({ active
 export default DemoScene;
 
 const styles = StyleSheet.create({
-  root: { overflow: 'hidden', backgroundColor: colors.black },
+  root: { overflow: 'hidden', backgroundColor: colors.bg },
   image: { position: 'absolute', left: 0, top: 0 },
   shade: { position: 'absolute', left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.28)' },
   crosshair: {
@@ -231,7 +236,7 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.8)',
+    borderColor: 'rgba(242,234,216,0.85)',
   },
   badgeRow: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   badge: {
@@ -243,7 +248,7 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     backgroundColor: colors.chipScrim,
     borderWidth: 1.5,
-    borderColor: '#FFB800',
+    borderColor: colors.emeraldBright,
   },
   badgeText: { color: colors.onDark, fontSize: 15, fontWeight: '700' },
   badgeHint: { color: colors.onDarkSecondary, fontSize: 14 },

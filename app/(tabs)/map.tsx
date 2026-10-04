@@ -15,6 +15,7 @@ import ScreenTransition from '../../components/glass/ScreenTransition';
 import Glass from '../../components/glass/Glass';
 import GlassSegmented from '../../components/glass/GlassSegmented';
 import PressableScale from '../../components/glass/PressableScale';
+import BrandMark from '../../components/glass/BrandMark';
 import { Globe, Heat, Leaf, Locate, MapPin } from '../../components/glass/Icons';
 import { buildDemoScenario, DEMO_CENTER, DEMO_PLACE } from '../../lib/demoScenario';
 import {
@@ -64,7 +65,7 @@ export default function MapScreen() {
   const { width, height } = useWindowDimensions();
   const { top, accessoryBottom } = useChromeInsets();
   const mapRef = useRef<TileMapHandle>(null);
-  const { c, scheme } = useTheme();
+  const { c } = useTheme();
   const styles = useStyles();
   const storeIssues = useShambaStore((s) => s.issues);
 
@@ -453,7 +454,7 @@ export default function MapScreen() {
             center={location ? { lat: location.coords.latitude, lng: location.coords.longitude } : center}
             zoom={layer === 'community' ? COMMUNITY_ZOOM : MAP_ZOOM}
             onZoomChange={setZoomLevel}
-            dim={scheme === 'dark' ? 0.38 : 0}
+            dim={0.5}
             onPanStart={() => setSelected(null)}
             onPress={() => {
               setSelected(null);
@@ -487,6 +488,7 @@ export default function MapScreen() {
       {/* CONTROL LAYER */}
       <View style={[styles.header, { top: top - 2 }]} pointerEvents="box-none">
         <View style={styles.titleRow} pointerEvents="box-none">
+          <BrandMark size={48} tone="glass" />
           <View pointerEvents="none" style={styles.titleBlock}>
             <Text style={styles.title} accessibilityRole="header">Field Map</Text>
             <Text style={styles.subtitle}>{subtitle}</Text>
@@ -503,14 +505,9 @@ export default function MapScreen() {
           onSelect={(i) => selectLayer(LAYERS[i])}
           direction="row"
           layout="inline"
-          palette={{
-            active: c.label,
-            idle: c.labelSecondary,
-            lens: scheme === 'dark' ? 'rgba(255,255,255,0.2)' : '#FFFFFF',
-            lensEdge: scheme === 'dark' ? 'rgba(255,255,255,0.35)' : '#FFFFFF',
-          }}
-          radius={22}
-          padding={3}
+          tone="light"
+          radius={24}
+          padding={4}
           itemStyle={styles.layerItem}
           style={styles.layerSwitch}
           accessibilityLabel="Map layer"
@@ -522,7 +519,7 @@ export default function MapScreen() {
       {center && mapped.length === 0 && layer !== 'community' && (
         <Animated.View entering={FadeIn.duration(300).delay(200)} exiting={FadeOut.duration(150)} style={[styles.hint, { bottom: accessoryBottom + 70 }]} pointerEvents="none">
           <Glass radius={22} style={styles.hintGlass}>
-            <MapPin size={18} color={colors.primary} hole={c.card} />
+            <MapPin size={18} color={colors.emeraldBright} hole={c.card} />
             <Text style={styles.hintText}>Tap the pin on a scan result to log it here.</Text>
           </Glass>
         </Animated.View>
@@ -558,20 +555,20 @@ export default function MapScreen() {
             accessibilityState={{ checked: demo }}
             accessibilityLabel={demo ? 'Leave demo farm' : 'Show demo farm'}
           >
-            <Glass radius={24} style={[styles.locate, demo && styles.demoOn]}>
-              <Leaf size={22} color={demo ? '#FFFFFF' : colors.primary} />
+            <Glass radius={24} tone="light" style={[styles.locate, demo && styles.demoOn]}>
+              <Leaf size={22} color={demo ? colors.onPrimary : colors.emeraldBright} />
             </Glass>
             <Text style={styles.demoLabel}>{demo ? 'Exit demo' : 'Demo'}</Text>
           </PressableScale>
           <PressableScale onPress={recenter} disabled={!location} accessibilityRole="button" accessibilityLabel="Center on my location">
-            <Glass radius={24} style={styles.locate}>
+            <Glass radius={24} tone="light" style={styles.locate}>
               <Locate />
             </Glass>
           </PressableScale>
         </View>
       )}
 
-      <Glass radius={27} style={[styles.legend, { bottom: accessoryBottom }, legendStyle]}>
+      <Glass radius={27} tone="light" style={[styles.legend, { bottom: accessoryBottom }, legendStyle]}>
         {layer === 'pins' && <PinsLegend key="pins" issues={mapped} />}
         {layer === 'health' && <HealthLegend key="health" />}
         {layer === 'community' && <CommunityLegend key="community" />}
@@ -585,16 +582,16 @@ const useStyles = makeStyles((c) => ({
   waitingText: { fontSize: 16, color: c.labelSecondary },
   topFade: { position: 'absolute', left: 0, right: 0, top: 0 },
   header: { position: 'absolute', left: SIDE, right: SIDE, gap: 12 },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.7, lineHeight: 40, color: c.label },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  title: { fontSize: 34, fontWeight: '800', letterSpacing: -1, lineHeight: 40, color: c.label },
   subtitle: { fontSize: 16, fontWeight: '500', color: c.labelSecondary },
   locate: { width: 48, height: 48, marginTop: 4, alignItems: 'center', justifyContent: 'center' },
   mapButtons: { position: 'absolute', right: SIDE, alignItems: 'center', gap: 10 },
   titleBlock: { flex: 1 },
   demoOn: { backgroundColor: colors.primary },
   demoLabel: { marginTop: 2, fontSize: 12, fontWeight: '600', textAlign: 'center', color: c.label, textShadowColor: c.groundMap, textShadowRadius: 3 },
-  layerSwitch: { alignSelf: 'flex-start', height: 44 },
-  layerItem: { height: 38, paddingHorizontal: 16 },
+  layerSwitch: { alignSelf: 'flex-start', height: 48 },
+  layerItem: { height: 40, paddingHorizontal: 16 },
   legend: { position: 'absolute', left: SIDE, right: SIDE },
   attribution: { position: 'absolute', right: SIDE + 6, fontSize: 10, color: c.labelTertiary },
   hint: { position: 'absolute', left: SIDE, right: SIDE + 64, alignItems: 'center' },
@@ -606,7 +603,7 @@ const useStyles = makeStyles((c) => ({
     borderRadius: 11,
     backgroundColor: colors.locate,
     borderWidth: 4,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cream,
     shadowColor: '#000',
     shadowOpacity: 0.3,
     shadowRadius: 3,

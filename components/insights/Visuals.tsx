@@ -9,16 +9,16 @@ import Animated, { useAnimatedProps, useSharedValue, withTiming, ZoomIn } from '
 import Svg, { Circle, Path } from 'react-native-svg';
 import type { ActionType } from '../../lib/db';
 import type { Confidence, HealthLevel, Insight, Trend, WeekCell } from '../../lib/insights';
-import { ease, makeStyles, severityGlyph, severityPin, useTheme } from '../../lib/theme';
+import { ease, makeStyles, onColor, severityGlyph, severityPin, status, useTheme } from '../../lib/theme';
 import { PinGlyph } from '../glass/Icons';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export const LEVEL_COLOR: Record<HealthLevel, string> = {
-  good: '#248A3D',
-  watch: '#D86A00',
-  sick: '#D70015',
-  unknown: '#8E8E93',
+  good: status.good,
+  watch: status.warning,
+  sick: status.danger,
+  unknown: status.neutral,
 };
 export const LEVEL_WORD: Record<HealthLevel, string> = { good: 'Healthy', watch: 'Watch', sick: 'Sick', unknown: 'Not checked' };
 export const TREND_WORD: Record<Trend, string> = { improving: 'Getting better', worsening: 'Getting worse', stable: 'Steady', new: 'New' };
@@ -79,7 +79,7 @@ export function HealthRing({ health, size = 56, stroke = 6 }: { health: Insight[
         />
       </Svg>
       <View style={{ width: size - stroke * 2 - 6, height: size - stroke * 2 - 6, borderRadius: size, backgroundColor: color, alignItems: 'center', justifyContent: 'center' }}>
-        <Face level={health.level} size={size * 0.48} />
+        <Face level={health.level} size={size * 0.48} color={onColor(color)} />
       </View>
     </View>
   );

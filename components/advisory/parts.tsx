@@ -114,7 +114,7 @@ export function useVoice(disease: any | null, active: boolean): Voice {
   return { playing, elapsed, total, progress, toggle: () => (playing ? stop() : play()) };
 }
 
-/** Play/pause + waveform that fills as the advice is spoken. */
+/** Emerald play/pause disc + waveform that fills as the advice is spoken. */
 export function VoiceBar({ voice, height = 56 }: { voice: Voice; height?: number }) {
   const styles = useStyles();
   const { playing, elapsed, total, progress, toggle } = voice;
@@ -163,7 +163,7 @@ function formatTime(s: number) {
 
 let btnSeq = 0;
 
-/** Prominent green glass button. Morphs idle → saving → saved. */
+/** The primary emerald pill. Morphs idle → saving → saved. */
 export function LogButton({
   state,
   onPress,
@@ -199,11 +199,11 @@ export function LogButton({
     >
       <View style={[StyleSheet.absoluteFill, { borderRadius: height / 2, overflow: 'hidden' }]} pointerEvents="none">
         <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.primary }]} />
-        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#248A3D' }, tintStyle]} />
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.emeraldBright }, tintStyle]} />
         <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
           <Defs>
             <RadialGradient id={id} cx="25%" cy="0%" rx="130%" ry="90%" fx="25%" fy="0%">
-              <Stop offset="0" stopColor="#fff" stopOpacity={0.32} />
+              <Stop offset="0" stopColor="#fff" stopOpacity={0.22} />
               <Stop offset="0.55" stopColor="#fff" stopOpacity={0} />
             </RadialGradient>
           </Defs>
@@ -212,11 +212,11 @@ export function LogButton({
         <View style={[StyleSheet.absoluteFill, styles.logRim, { borderRadius: height / 2 }]} />
       </View>
       <Animated.View key={state} entering={FadeIn.duration(180)} style={styles.logContent}>
-        {state === 'idle' && <MapPin size={20} hole={colors.primary} />}
-        {state === 'saving' && <ActivityIndicator color="#fff" size="small" />}
+        {state === 'idle' && <MapPin size={20} color={colors.onPrimary} hole={colors.primary} />}
+        {state === 'saving' && <ActivityIndicator color={colors.onPrimary} size="small" />}
         {state === 'saved' && (
           <Animated.View entering={ZoomIn.springify().damping(12).stiffness(300)}>
-            <Check size={20} />
+            <Check size={20} color={colors.onPrimary} />
           </Animated.View>
         )}
         <Text style={styles.logText}>
@@ -249,7 +249,7 @@ export function Checklist({ steps }: { steps: string[] }) {
     <View style={styles.group}>
       {steps.map((step, i) => (
         <React.Fragment key={i}>
-          {i > 0 && <View style={[styles.separator, { marginLeft: 52 }]} />}
+          {i > 0 && <View style={[styles.separator, { marginLeft: 56 }]} />}
           <PressableScale
             pressedScale={0.98}
             onPress={() => setDone((d) => d.map((v, j) => (j === i ? !v : v)))}
@@ -276,7 +276,7 @@ function CheckCircle({ checked }: { checked: boolean }) {
   return (
     <View style={styles.checkCircle}>
       <Animated.View style={[StyleSheet.absoluteFill, styles.checkFill, fill]}>
-        <Check size={14} />
+        <Check size={16} color={colors.onPrimary} />
       </Animated.View>
     </View>
   );
@@ -288,7 +288,7 @@ export function NumberedList({ steps }: { steps: string[] }) {
     <View style={styles.group}>
       {steps.map((step, i) => (
         <React.Fragment key={i}>
-          {i > 0 && <View style={[styles.separator, { marginLeft: 54 }]} />}
+          {i > 0 && <View style={[styles.separator, { marginLeft: 58 }]} />}
           <View style={styles.row}>
             <View style={styles.numberBadge}>
               <Text style={styles.numberText}>{i + 1}</Text>
@@ -304,36 +304,36 @@ export function NumberedList({ steps }: { steps: string[] }) {
 const useStyles = makeStyles((c) => ({
   chip: {
     alignSelf: 'flex-start',
-    height: 32,
+    height: 34,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     paddingLeft: 8,
-    paddingRight: 12,
-    borderRadius: 16,
+    paddingRight: 14,
+    borderRadius: 17,
   },
-  chipText: { fontSize: 15, fontWeight: '600' },
+  chipText: { fontSize: 15, fontWeight: '700' },
 
-  voice: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 4, paddingRight: 16, backgroundColor: c.card },
+  voice: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 4, paddingRight: 18, backgroundColor: c.cardRaised },
   voiceButton: { backgroundColor: c.voiceButton, alignItems: 'center', justifyContent: 'center' },
   wave: { flex: 1, height: 26, justifyContent: 'center' },
   waveFill: { position: 'absolute', left: 0, top: 0, bottom: 0, overflow: 'hidden', justifyContent: 'center' },
   waveRow: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 26 },
   waveBar: { width: 4, borderRadius: 2 },
-  voiceTime: { fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'], color: c.label },
+  voiceTime: { fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'], color: c.label },
 
-  logButton: { alignItems: 'center', justifyContent: 'center', shadowColor: '#1E7B3C', shadowOpacity: 0.35, shadowRadius: 9, shadowOffset: { width: 0, height: 6 } },
-  logRim: { borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.2)', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.55)' },
+  logButton: { alignItems: 'center', justifyContent: 'center', shadowColor: colors.emerald, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 6 } },
+  logRim: { borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.14)', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.4)' },
   logContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  logText: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  logText: { color: colors.onPrimary, fontSize: 17, fontWeight: '700' },
 
   group: { borderRadius: 26, backgroundColor: c.card, overflow: 'hidden' },
   separator: { height: 1, backgroundColor: c.separator },
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 15, paddingHorizontal: 16 },
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingVertical: 15, paddingHorizontal: 16 },
   rowText: { flex: 1, fontSize: 17, lineHeight: 24, color: c.label },
   rowTextDone: { color: c.labelTertiary, textDecorationLine: 'line-through' },
-  checkCircle: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: c.checkBorder, marginTop: 1 },
-  checkFill: { margin: -2, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  numberBadge: { width: 26, height: 26, borderRadius: 13, backgroundColor: c.numberBadge, alignItems: 'center', justifyContent: 'center' },
-  numberText: { fontSize: 15, fontWeight: '700', color: c.label },
+  checkCircle: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: c.checkBorder, marginTop: -1 },
+  checkFill: { margin: -2, borderRadius: 14, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  numberBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: c.numberBadge, alignItems: 'center', justifyContent: 'center', marginTop: -2 },
+  numberText: { fontSize: 15, fontWeight: '800', color: c.accentText },
 }));

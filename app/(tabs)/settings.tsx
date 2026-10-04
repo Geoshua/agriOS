@@ -15,8 +15,9 @@ import Animated, {
 import Constants from 'expo-constants';
 import ScreenTransition from '../../components/glass/ScreenTransition';
 import PressableScale from '../../components/glass/PressableScale';
+import BrandMark from '../../components/glass/BrandMark';
 import { Check, Download, Pause, Speaker, Trash } from '../../components/glass/Icons';
-import { colors, makeStyles, spring, timing, useTheme } from '../../lib/theme';
+import { colors, makeStyles, spring, status, timing, useTheme } from '../../lib/theme';
 import { useChromeInsets } from '../../lib/layout';
 import { useShambaStore } from '../../lib/store';
 import { saveSettings } from '../../lib/settings';
@@ -123,8 +124,11 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Animated.View entering={enter(0)} style={styles.header}>
-          <Text style={styles.title} accessibilityRole="header">Settings</Text>
-          <Text style={styles.subtitle}>Everything here works without internet.</Text>
+          <BrandMark size={48} />
+          <View style={styles.headerText}>
+            <Text style={styles.title} accessibilityRole="header">Settings</Text>
+            <Text style={styles.subtitle}>Everything here works without internet.</Text>
+          </View>
         </Animated.View>
 
         <Animated.View entering={enter(1)} layout={layoutTransition} style={styles.section}>
@@ -178,7 +182,7 @@ export default function SettingsScreen() {
         </Animated.View>
 
         <Animated.Text entering={enter(3)} style={styles.version}>
-          agriOS {Constants.expoConfig?.version ?? ''}
+          AgriOS {Constants.expoConfig?.version ?? ''}
         </Animated.Text>
       </ScrollView>
     </ScreenTransition>
@@ -250,7 +254,7 @@ function PackRow({
           {state.kind === 'missing' && (
             <Animated.View key="dl" entering={ZoomIn.springify().damping(16).stiffness(280)} exiting={ZoomOut.duration(120)}>
               <PressableScale onPress={onDownload} style={styles.iconButton} accessibilityRole="button" accessibilityLabel={`Download ${pack.name} voice pack`}>
-                <Download color={colors.primary} />
+                <Download color={colors.emeraldBright} />
               </PressableScale>
             </Animated.View>
           )}
@@ -291,7 +295,7 @@ function Radio({ checked }: { checked: boolean }) {
   return (
     <View style={styles.radio}>
       <Animated.View style={[StyleSheet.absoluteFill, styles.radioFill, fill]}>
-        <Check size={14} />
+        <Check size={14} color={colors.onPrimary} />
       </Animated.View>
     </View>
   );
@@ -319,8 +323,9 @@ function friendlyError(e: unknown): string {
 
 const useStyles = makeStyles((c) => ({
   content: { paddingHorizontal: 16, gap: 24 },
-  header: { gap: 2, paddingHorizontal: 4 },
-  title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.7, lineHeight: 40, color: c.label },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4 },
+  headerText: { flex: 1, gap: 2 },
+  title: { fontSize: 34, fontWeight: '800', letterSpacing: -1, lineHeight: 40, color: c.label },
   subtitle: { fontSize: 16, color: c.labelSecondary },
   section: { gap: 8 },
   sectionTitle: { fontSize: 20, fontWeight: '700', paddingHorizontal: 4, color: c.label },
@@ -332,8 +337,8 @@ const useStyles = makeStyles((c) => ({
   nameRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' },
   packName: { fontSize: 17, fontWeight: '600', color: c.label },
   packAlt: { fontSize: 15, color: c.labelSecondary },
-  draftTag: { alignSelf: 'center', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: 'rgba(255,159,10,0.18)' },
-  draftText: { fontSize: 12, fontWeight: '700', color: '#B25E00' },
+  draftTag: { alignSelf: 'center', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: 'rgba(245,165,36,0.18)' },
+  draftText: { fontSize: 12, fontWeight: '700', color: status.warning },
   packRegion: { fontSize: 13, color: c.labelTertiary },
   packStatus: { fontSize: 13, fontWeight: '600', color: c.labelSecondary, marginTop: 2 },
   actions: { minWidth: 44, alignItems: 'flex-end' },
@@ -343,7 +348,7 @@ const useStyles = makeStyles((c) => ({
   radioFill: { margin: -2, borderRadius: 13, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   track: { height: 4, borderRadius: 2, backgroundColor: c.fill, marginTop: 6, overflow: 'hidden' },
   trackFill: { height: 4, borderRadius: 2, backgroundColor: colors.primary },
-  error: { fontSize: 13, lineHeight: 18, color: '#D70015', paddingHorizontal: 16, paddingBottom: 12, marginTop: -6 },
+  error: { fontSize: 13, lineHeight: 18, color: status.danger, paddingHorizontal: 16, paddingBottom: 12, marginTop: -6 },
   note: { fontSize: 13, lineHeight: 18, paddingHorizontal: 4, color: c.labelTertiary },
   aboutCard: { padding: 16, gap: 10 },
   aboutText: { fontSize: 15, lineHeight: 21, color: c.labelSecondary },

@@ -21,8 +21,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import Glass from '../glass/Glass';
 import PressableScale from '../glass/PressableScale';
+import BrandMark from '../glass/BrandMark';
 import { Bolt, Check, ChevronDown, ChevronLeft } from '../glass/Icons';
-import { colors, makeStyles, spring, timing, useTheme } from '../../lib/theme';
+import { colors, makeStyles, spring, status, timing, useTheme } from '../../lib/theme';
 import { FIELD_BLOCKS, FieldBlock, ScanMode, useShambaStore } from '../../lib/store';
 import { SIDE, useChromeInsets } from '../../lib/layout';
 
@@ -46,7 +47,7 @@ export function PingDot({ active, size = 9 }: { active: boolean; size?: number }
   const dot = { width: size, height: size, borderRadius: size / 2 };
   return (
     <View style={dot}>
-      <Animated.View style={[styles.dot, dot, { backgroundColor: active ? colors.scanning : '#8E8E93' }, dotStyle]} />
+      <Animated.View style={[styles.dot, dot, { backgroundColor: active ? colors.scanning : status.neutral }, dotStyle]} />
       <Animated.View style={[styles.dot, dot, { backgroundColor: colors.scanning }, ringStyle]} />
     </View>
   );
@@ -122,7 +123,8 @@ export default function ScanTopBar({ mode, scanning, onBack, showTorch = true }:
       )}
 
       <View style={[styles.row, { top }]} pointerEvents="box-none">
-        <View>
+        <View style={styles.left} pointerEvents="box-none">
+          <BrandMark size={48} tone="glass" />
           {mode === 'ar' ? (
             <Animated.View key="block" entering={pillIn} exiting={pillOut}>
               <PressableScale
@@ -165,7 +167,7 @@ export default function ScanTopBar({ mode, scanning, onBack, showTorch = true }:
             >
               <Glass radius={24} style={styles.round}>
                 <Animated.View key={torch ? 'on' : 'off'} entering={ZoomIn.springify().damping(14).stiffness(320)} exiting={ZoomOut.duration(120)}>
-                  <Bolt color={torch ? '#FFB800' : g.text} off={!torch} />
+                  <Bolt color={torch ? g.accent : g.text} off={!torch} />
                 </Animated.View>
               </Glass>
             </PressableScale>
@@ -174,14 +176,14 @@ export default function ScanTopBar({ mode, scanning, onBack, showTorch = true }:
       </View>
 
       {menuOpen && (
-        <Animated.View entering={menuEntering} exiting={menuExiting} style={[styles.menuWrap, { top: top + 56 }]}>
+        <Animated.View entering={menuEntering} exiting={menuExiting} style={[styles.menuWrap, { top: top + 56, left: SIDE + 56 }]}>
           <Glass radius={22} highlightHeight="40%" style={styles.menu}>
             {FIELD_BLOCKS.map((block, i) => (
               <React.Fragment key={block}>
                 {i > 0 && <View style={styles.menuDivider} />}
                 <PressableScale pressedScale={0.97} onPress={() => pick(block)} style={styles.menuItem} accessibilityRole="menuitem">
                   <Text style={styles.menuText}>Block {block}</Text>
-                  {block === activeBlock && <Check size={18} color={g.active} />}
+                  {block === activeBlock && <Check size={18} color={g.accent} />}
                 </PressableScale>
               </React.Fragment>
             ))}
@@ -202,9 +204,10 @@ const useStyles = makeStyles((c, g) => ({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  pill: { height: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 16, paddingRight: 14 },
+  left: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pill: { height: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 14, paddingRight: 14 },
   backPill: { height: 48, flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 12, paddingRight: 18 },
-  pillTitle: { color: g.text, fontSize: 17, fontWeight: '600' },
+  pillTitle: { color: g.text, fontSize: 17, fontWeight: '700' },
   pillValue: { color: g.textSecondary, fontSize: 17 },
   round: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   dot: { position: 'absolute', left: 0, top: 0 },

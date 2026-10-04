@@ -13,7 +13,7 @@ import { Check } from '../glass/Icons';
 import { ActionIcon } from '../insights/Visuals';
 import TaskRow, { TASK_COLOR } from './TaskRow';
 import { subjectLabel, useTasks } from './useTasks';
-import { colors, makeStyles, useTheme } from '../../lib/theme';
+import { colors, makeStyles, onColor, useTheme } from '../../lib/theme';
 
 const openTasks = () => router.push('/tasks' as Href);
 
@@ -40,8 +40,8 @@ export default function TasksSummary() {
         <Pill color={counts.today ? TASK_COLOR.today : TASK_COLOR.week} text={`${counts.today} today`} />
         {thirsty.length > 0 && (
           <View style={[styles.pill, { backgroundColor: TASK_COLOR.water }]}>
-            <ActionIcon type="watered" size={14} color="#FFFFFF" />
-            <Text style={styles.pillText}>Water {thirsty.length > 2 ? `${thirsty.length} blocks` : thirsty.map((b) => `Block ${b}`).join(', ')}</Text>
+            <ActionIcon type="watered" size={14} color={onColor(TASK_COLOR.water)} />
+            <Text style={[styles.pillText, { color: onColor(TASK_COLOR.water) }]}>Water {thirsty.length > 2 ? `${thirsty.length} blocks` : thirsty.map((b) => `Block ${b}`).join(', ')}</Text>
           </View>
         )}
       </View>
@@ -58,7 +58,7 @@ export default function TasksSummary() {
       ) : (
         <View style={styles.allDone}>
           <View style={styles.doneDisc}>
-            <Check size={18} color="#FFFFFF" />
+            <Check size={18} color={colors.onPrimary} />
           </View>
           <Text style={[styles.allDoneText, { color: c.labelSecondary }]}>All done for now</Text>
         </View>
@@ -71,7 +71,7 @@ function Pill({ color, text }: { color: string; text: string }) {
   const styles = useStyles();
   return (
     <View style={[styles.pill, { backgroundColor: color }]}>
-      <Text style={styles.pillText}>{text}</Text>
+      <Text style={[styles.pillText, { color: onColor(color) }]}>{text}</Text>
     </View>
   );
 }
@@ -80,10 +80,10 @@ const useStyles = makeStyles((c) => ({
   card: { paddingTop: 6, paddingBottom: 10, borderRadius: 26, backgroundColor: c.card, gap: 8, overflow: 'hidden' },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, paddingHorizontal: 16 },
   title: { fontSize: 20, fontWeight: '700', color: c.label },
-  seeAll: { fontSize: 16, fontWeight: '600', color: colors.primary },
+  seeAll: { fontSize: 16, fontWeight: '700', color: colors.emeraldBright },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16 },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
-  pillText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 14 },
+  pillText: { fontSize: 14, fontWeight: '800' },
   list: {},
   sep: { height: 1, marginLeft: 68, backgroundColor: c.separator },
   allDone: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingHorizontal: 16 },

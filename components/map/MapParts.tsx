@@ -7,7 +7,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import Glass from '../glass/Glass';
 import PressableScale from '../glass/PressableScale';
 import { ChevronDown, Close, PinGlyph, StatusDisc } from '../glass/Icons';
-import { colors, makeStyles, Scheme, sentenceCase, severityGlyph, severityLabel, severityPin, spring, timing, useTheme } from '../../lib/theme';
+import { colors, makeStyles, Scheme, sentenceCase, severityGlyph, severityLabel, severityPin, spring, status, timing, useTheme } from '../../lib/theme';
 import type { IssueRecord } from '../../lib/db';
 import { SOIL_SOURCE_LABEL } from '../../lib/soil';
 import type { SoilAdvisory, SoilProfile } from '../../lib/soil';
@@ -61,10 +61,8 @@ const BLOCK_TEXT: Record<string, string> = {
   unknown: 'check',
   none: 'healthy',
 };
-const BLOCK_COLOR: Record<Scheme, Record<string, string>> = {
-  light: { high: '#8E1A12', medium: '#8A4100', low: '#6E5300', unknown: '#3A3A3C', none: '#1C6B61' },
-  dark: { high: '#FF6961', medium: '#FFB340', low: '#FFD60A', unknown: '#D1D1D6', none: '#63E6BE' },
-};
+const BLOCK_TONE: Record<string, string> = { high: status.danger, medium: status.warning, low: status.caution, unknown: '#D8D1C2', none: status.goodText };
+const BLOCK_COLOR: Record<Scheme, Record<string, string>> = { light: BLOCK_TONE, dark: BLOCK_TONE };
 
 /** Several nearby scans merged into one bubble: count, coloured by the worst severity. */
 export function ClusterPin({ severity, count }: { severity: string; count: number }) {
@@ -139,7 +137,7 @@ export function Popover({ issue, left, bottom, arrowX }: { issue: IssueRecord; l
       <View style={[styles.arrow, { left: arrowX }]} />
       <View style={styles.popoverHead}>
         <StatusDisc size={16} color={color} kind={severityGlyph(issue.severity)} />
-        <Text style={[styles.popoverSeverity, { color: issue.severity === 'low' ? (scheme === 'dark' ? '#FFD60A' : '#6E5300') : color }]}>
+        <Text style={[styles.popoverSeverity, { color: issue.severity === 'low' ? status.caution : issue.severity === 'high' ? status.danger : color }]}>
           {severityLabel[issue.severity] ?? 'Unsure'}
         </Text>
       </View>
@@ -206,12 +204,12 @@ export function HealthLegend() {
           <Svg width="100%" height="10">
             <Defs>
               <LinearGradient id="ramp" x1="0" y1="0" x2="1" y2="0">
-                <Stop offset="0" stopColor="#2A9D8F" />
-                <Stop offset="0.3" stopColor="#9AD6CC" />
-                <Stop offset="0.5" stopColor="#E9E9E4" />
-                <Stop offset="0.66" stopColor="#F2C14E" />
-                <Stop offset="0.82" stopColor="#E07B28" />
-                <Stop offset="1" stopColor="#B3261E" />
+                <Stop offset="0" stopColor="#239B6D" />
+                <Stop offset="0.3" stopColor="#8FD9B8" />
+                <Stop offset="0.5" stopColor="#3A342C" />
+                <Stop offset="0.66" stopColor="#F2C230" />
+                <Stop offset="0.82" stopColor="#E8841C" />
+                <Stop offset="1" stopColor="#E5342A" />
               </LinearGradient>
             </Defs>
             <Rect x="0" y="0" width="100%" height="10" rx="5" fill="url(#ramp)" />
@@ -242,8 +240,8 @@ export const DISEASE_COLOR: Record<string, string> = {
   coffee_leaf_miner: '#D69E2E',
   coffee_phoma: '#E53E3E',
   coffee_brown_eye: '#9B2C2C',
-  healthy: '#38A169',
-  unknown: '#718096',
+  healthy: '#239B6D',
+  unknown: '#8A857C',
 };
 
 export const DISEASE_LABEL: Record<string, string> = {
@@ -276,7 +274,7 @@ export function RegionCard({ region, bottom, onClose }: { region: HeatmapRegion;
   const breakdown = Object.entries(region.counts).sort((a, b) => b[1] - a[1]);
   return (
     <Animated.View entering={popIn} exiting={popOut} style={[styles.regionCardWrap, { bottom }]}>
-      <Glass radius={24} highlightHeight="50%" style={styles.regionCard}>
+      <Glass radius={24} tone="light" highlightHeight="50%" style={styles.regionCard}>
         <View style={styles.regionHead}>
           <View style={[styles.legendDot, { backgroundColor: color }]} />
           <Text style={styles.popoverTitle}>
@@ -317,18 +315,12 @@ export function CommunityLegend() {
 // ── Soil conditions (SoilGrids) ───────────────────────────────────────────────
 
 const PH_LABEL: Record<SoilAdvisory['phStatus'], string> = { low: 'acidic', optimal: 'optimal', high: 'alkaline' };
-const PH_COLOR: Record<Scheme, Record<SoilAdvisory['phStatus'], { bg: string; fg: string }>> = {
-  light: {
-    low: { bg: '#FDEBD9', fg: '#8F3F00' },
-    optimal: { bg: '#DDF3E3', fg: '#17652B' },
-    high: { bg: '#DCE9FB', fg: '#1D4E9E' },
-  },
-  dark: {
-    low: { bg: 'rgba(255,159,10,0.22)', fg: '#FFB340' },
-    optimal: { bg: 'rgba(48,209,88,0.2)', fg: '#30D158' },
-    high: { bg: 'rgba(10,132,255,0.24)', fg: '#64A8FF' },
-  },
+const PH_TONE: Record<SoilAdvisory['phStatus'], { bg: string; fg: string }> = {
+  low: { bg: 'rgba(245,165,36,0.2)', fg: '#FFBC4A' },
+  optimal: { bg: colors.emeraldTint, fg: colors.emeraldBright },
+  high: { bg: 'rgba(77,163,255,0.2)', fg: '#7DB9FF' },
 };
+const PH_COLOR: Record<Scheme, Record<SoilAdvisory['phStatus'], { bg: string; fg: string }>> = { light: PH_TONE, dark: PH_TONE };
 
 const soilLayout = LinearTransition.springify().damping(24).stiffness(260);
 
@@ -347,7 +339,7 @@ export function SoilCard({ profile, advisory }: { profile: SoilProfile; advisory
         accessibilityState={{ expanded: open }}
         accessibilityLabel={`Field soil, pH ${profile.ph.toFixed(1)}, ${status.label}`}
       >
-        <Glass radius={22} highlightHeight="50%" style={styles.soil}>
+        <Glass radius={22} tone="light" highlightHeight="50%" style={styles.soil}>
           <View style={styles.soilHead}>
             <Text style={styles.soilTitle}>Soil</Text>
             <View style={[styles.phBadge, { backgroundColor: status.bg }]}>
@@ -385,7 +377,7 @@ const useStyles = makeStyles((c, g) => ({
   soilSource: { fontSize: 12, color: c.labelTertiary, marginTop: 2 },
   pinWrap: { padding: 6 },
   pin: {
-    borderColor: colors.white,
+    borderColor: colors.cream,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -394,7 +386,7 @@ const useStyles = makeStyles((c, g) => ({
     shadowOffset: { width: 0, height: 3 },
     elevation: 4,
   },
-  blockLabel: { paddingVertical: 4, paddingHorizontal: 9, borderRadius: 8, backgroundColor: c.tag, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(0,0,0,0.2)' },
+  blockLabel: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 10, backgroundColor: c.tag, borderWidth: StyleSheet.hairlineWidth, borderColor: c.separator },
   blockLabelText: { fontSize: 13, fontWeight: '700' },
 
   popover: {
@@ -436,7 +428,7 @@ const useStyles = makeStyles((c, g) => ({
   legendItem: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
   legendDot: { width: 11, height: 11, borderRadius: 6 },
   clusterText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  legendDotEdge: { borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(0,0,0,0.25)' },
+  legendDotEdge: { borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(242,234,216,0.25)' },
   legendText: { fontSize: 14, fontWeight: '600', color: c.label },
   legendTextSmall: { fontSize: 13, fontWeight: '600', color: c.label },
   communityLegend: { ...StyleSheet.absoluteFill, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', alignContent: 'center', paddingHorizontal: 14, rowGap: 4 },
@@ -447,7 +439,7 @@ const useStyles = makeStyles((c, g) => ({
     paddingHorizontal: 9,
     borderRadius: 22,
     borderWidth: 3,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cream,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',

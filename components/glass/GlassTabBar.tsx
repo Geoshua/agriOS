@@ -1,7 +1,8 @@
 /**
- * Floating Liquid Glass tab bar (custom `tabBar` for expo-router Tabs).
+ * Floating tab bar (custom `tabBar` for expo-router Tabs): a dark pod holding
+ * five round icon buttons; the selected one sits on a solid emerald disc.
+ * Icon-only on purpose — every tab also has a spoken accessibility label.
  *
- * - Material follows the phone's appearance, blending smoothly when it changes.
  * - In the scanner's full-camera mode it minimizes to a single round button
  *   holding the Scan icon; tapping it expands back to AR.
  * - While the details sheet is up it slides away.
@@ -16,23 +17,23 @@ import PressableScale from './PressableScale';
 import { BarChart, Gear, Leaf, MapFold, ScanFrame } from './Icons';
 import { spring, timing, useTheme } from '../../lib/theme';
 import { useShambaStore } from '../../lib/store';
-import { TAB_BAR_HEIGHT, MINI_SIZE, SIDE, useChromeInsets } from '../../lib/layout';
+import { TAB_BAR_HEIGHT, TAB_ITEM, MINI_SIZE, SIDE, useChromeInsets } from '../../lib/layout';
 
 /** Props expo-router passes to a custom `tabBar`. */
 type BottomTabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs>['tabBar']>>[0];
 
 const TAB_META: Record<string, Omit<SegmentItem, 'key'>> = {
-  scan: { label: 'Scan', icon: (c) => <ScanFrame color={c} /> },
-  map: { label: 'Field Map', icon: (c) => <MapFold color={c} /> },
-  plants: { label: 'Plants', accessibilityLabel: 'My Plants', icon: (c) => <Leaf size={24} color={c} /> },
-  report: { label: 'Report', icon: (c) => <BarChart color={c} /> },
-  settings: { label: 'Settings', icon: (c) => <Gear color={c} /> },
+  scan: { label: 'Scan', icon: (c) => <ScanFrame size={26} color={c} /> },
+  map: { label: 'Field Map', icon: (c) => <MapFold size={26} color={c} /> },
+  plants: { label: 'Plants', accessibilityLabel: 'My Plants', icon: (c) => <Leaf size={26} color={c} /> },
+  report: { label: 'Report', icon: (c) => <BarChart size={26} color={c} /> },
+  settings: { label: 'Settings', icon: (c) => <Gear size={26} color={c} /> },
 };
 
 export default function GlassTabBar({ state, navigation }: BottomTabBarProps) {
   const { width } = useWindowDimensions();
   const { tabBottom } = useChromeInsets();
-  const { scheme, g } = useTheme();
+  const { g } = useTheme();
   const scanMode = useShambaStore((s) => s.scanMode);
   const setScanMode = useShambaStore((s) => s.setScanMode);
 
@@ -41,13 +42,9 @@ export default function GlassTabBar({ state, navigation }: BottomTabBarProps) {
   const minimized = onScan && scanMode === 'camera';
   const hidden = onScan && scanMode === 'details';
 
-  const tone = useSharedValue(scheme === 'dark' ? 0 : 1);
   const mini = useSharedValue(minimized ? 1 : 0);
   const hide = useSharedValue(hidden ? 1 : 0);
 
-  useEffect(() => {
-    tone.value = withTiming(scheme === 'dark' ? 0 : 1, timing.slow);
-  }, [scheme]);
   useEffect(() => {
     mini.value = withSpring(minimized ? 1 : 0, spring.gentle);
   }, [minimized]);
@@ -93,7 +90,11 @@ export default function GlassTabBar({ state, navigation }: BottomTabBarProps) {
       selectedIndex={state.index}
       onSelect={onSelect}
       direction="row"
-      tone={tone}
+      tone="light"
+      showLabels={false}
+      lensSize={TAB_ITEM}
+      padding={(TAB_BAR_HEIGHT - TAB_ITEM) / 2}
+      itemStyle={{ height: TAB_ITEM }}
       radius={TAB_BAR_HEIGHT / 2}
       style={[styles.bar, barStyle]}
       trackStyle={trackStyle}
@@ -107,7 +108,7 @@ export default function GlassTabBar({ state, navigation }: BottomTabBarProps) {
             accessibilityRole="button"
             accessibilityLabel="Scan tab. Expand tab bar"
           >
-            <ScanFrame size={26} color={g.active} />
+            <ScanFrame size={26} color={g.accent} />
           </PressableScale>
         </Animated.View>
       }

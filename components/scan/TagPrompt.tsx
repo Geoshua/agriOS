@@ -48,7 +48,7 @@ export default function TagPrompt() {
         {tagged ? (
           <Animated.View entering={FadeIn.duration(180)} style={styles.doneRow}>
             <Animated.View entering={ZoomIn.springify().damping(12)} style={styles.doneDot}>
-              <Check size={16} color="#FFFFFF" />
+              <Check size={16} color={colors.onPrimary} />
             </Animated.View>
             <Text style={[styles.title, { color: g.text }]}>Added to {tagged}</Text>
           </Animated.View>

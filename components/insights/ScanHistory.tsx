@@ -20,7 +20,7 @@ import { Pin } from '../map/MapParts';
 import { deleteIssue, IssueRecord, PlantRecord } from '../../lib/db';
 import { DEMO_PHOTO, deletePhotoFile } from '../../lib/photos';
 import { plantLabel, untagScan } from '../../lib/plants';
-import { colors, makeStyles, sentenceCase, severityPin, useTheme } from '../../lib/theme';
+import { colors, makeStyles, sentenceCase, severityPin, status, useTheme } from '../../lib/theme';
 import { useShambaStore } from '../../lib/store';
 import { DEMO_LEAF_SVG } from '../../assets/demo/leafPhoto';
 
@@ -194,7 +194,7 @@ function ScanViewer({ scan, trees, onClose }: { scan: IssueRecord | null; trees:
             />
 
             <PressableScale onPress={confirmDelete} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete this scan as a false positive">
-              <Trash color="#D70015" />
+              <Trash color={status.danger} />
               <Text style={styles.deleteText}>Delete — wrong result</Text>
             </PressableScale>
           </ScrollView>
@@ -216,7 +216,7 @@ const useStyles = makeStyles((c) => ({
   tag: { fontSize: 13, fontWeight: '600', color: c.accentText },
   untagged: { color: c.labelSecondary },
   empty: { fontSize: 15, color: c.labelSecondary, paddingHorizontal: 4 },
-  backdrop: { ...({ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 } as const), backgroundColor: 'rgba(0,0,0,0.45)' },
+  backdrop: { ...({ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 } as const), backgroundColor: 'rgba(0,0,0,0.6)' },
   viewer: {
     position: 'absolute',
     left: 0,
@@ -230,15 +230,15 @@ const useStyles = makeStyles((c) => ({
     paddingTop: 14,
   },
   viewerHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  viewerTitle: { fontSize: 24, fontWeight: '700', color: c.label, flex: 1 },
+  viewerTitle: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5, color: c.label, flex: 1 },
   closeBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: c.fill },
   detail: { fontSize: 15, lineHeight: 21, color: c.labelSecondary },
   whereRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   whereText: { flex: 1, fontSize: 15, fontWeight: '600', color: c.label },
-  smallBtn: { minHeight: 44, paddingHorizontal: 14, borderRadius: 14, backgroundColor: c.fill, justifyContent: 'center' },
+  smallBtn: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: c.fill, justifyContent: 'center' },
   smallBtnText: { fontSize: 14, fontWeight: '600', color: c.label },
   miniMap: { height: 150, borderRadius: 20, overflow: 'hidden', backgroundColor: c.groundMap },
   sectionLabel: { fontSize: 15, fontWeight: '700', color: c.label, marginTop: 4 },
-  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 50, borderRadius: 16, backgroundColor: 'rgba(215,0,21,0.1)', marginTop: 6 },
-  deleteText: { fontSize: 16, fontWeight: '700', color: '#D70015' },
+  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 52, borderRadius: 26, backgroundColor: 'rgba(240,86,74,0.14)', marginTop: 6 },
+  deleteText: { fontSize: 16, fontWeight: '700', color: status.danger },
 }));

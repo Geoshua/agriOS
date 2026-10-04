@@ -1,5 +1,5 @@
 /**
- * AR annotation layer: a white ring around every detected lesion plus a
+ * AR annotation layer: a cream ring around every detected lesion plus a
  * "N spots" label. Rings pop in with a stagger, glide to new positions as
  * detections update, and shrink away when they disappear.
  */
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     borderWidth: 2.5,
-    borderColor: colors.white,
+    borderColor: colors.cream,
     shadowColor: '#000',
     shadowOpacity: 0.3,
     shadowRadius: 6,
@@ -107,11 +107,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 6,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 16,
     backgroundColor: colors.scrim,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(242,234,216,0.12)',
   },
-  labelCount: { color: colors.white, fontSize: 17, fontWeight: '600' },
+  labelCount: { color: colors.emeraldBright, fontSize: 17, fontWeight: '700' },
   labelHint: { color: colors.onDarkSecondary, fontSize: 14 },
 });

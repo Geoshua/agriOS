@@ -1,188 +1,249 @@
 /**
- * Design tokens for direction A · Liquid Glass (Coffee Leaf Scanner canvas).
- * Camera screens use dark glass over the live feed; Map, Report and sheets use
- * light glass over paper-grey grounds.
+ * Design tokens — "Emerald on soil", taken from the AgriOS logo.
+ *
+ * One dark appearance everywhere: warm near-black grounds, opaque rounded
+ * "pods" in the logo's tile colour for cards and controls, cream text, and
+ * the logo's two greens — bright emerald for the primary action / selected
+ * state (with near-black content on it) and deep emerald for secondary fills
+ * (with cream content on it). Icons and status use colour + glyph, never
+ * colour alone.
+ *
+ * The camera and map keep translucent dark glass for floating chrome; scroll
+ * screens and sheets use opaque pods on the ground colour.
  */
 
-import { StyleSheet, useColorScheme } from 'react-native';
+import { StyleSheet, TextStyle } from 'react-native';
 import { Easing, WithSpringConfig, WithTimingConfig } from 'react-native-reanimated';
 
-/** Colours that don't change between light and dark mode. */
+// ── Brand ─────────────────────────────────────────────────────────────────────
+
+const EMERALD = '#239B6D'; // logo, left plane (measured from the artwork)
+const EMERALD_BRIGHT = '#34C98E'; // small text / live indicators on dark
+const EMERALD_DEEP = '#33644C'; // logo, right plane
+const ON_EMERALD = '#0E0C08';
+
+const BG = '#100E0A'; // camera + sheet ground
+const GROUND = '#14110C'; // scrolling screens
+const POD = '#1C1813'; // logo tile — cards, controls
+const POD_RAISED = '#272119';
+const POD_SUNKEN = '#0D0B08';
+
+const CREAM = '#F2EAD8'; // logo light
+const TEXT_SECONDARY = 'rgba(242,234,216,0.72)';
+const TEXT_TERTIARY = 'rgba(242,234,216,0.5)';
+
+/** Colours that are the same on every surface. */
 export const colors = {
   black: '#000000',
   white: '#FFFFFF',
 
-  // Text on the camera scrims (always dark)
-  onDark: '#FFFFFF',
-  onDarkSecondary: 'rgba(255,255,255,0.85)',
+  // Grounds and surfaces
+  bg: BG,
+  ground: GROUND,
+  pod: POD,
+  podRaised: POD_RAISED,
+  podSunken: POD_SUNKEN,
+  line: 'rgba(242,234,216,0.08)',
 
-  // Accents
-  scanning: '#30D158',
-  activeOnDark: '#5BD47E',
-  activeOnLight: '#1E7B3C',
-  primary: '#1E7B3C',
-  locate: '#0A84FF',
-  pinHole: '#3A3A3C',
-  scrim: 'rgba(0,0,0,0.72)',
-  chipScrim: 'rgba(0,0,0,0.66)',
+  // Text
+  cream: CREAM,
+  text: CREAM,
+  textSecondary: TEXT_SECONDARY,
+  textTertiary: TEXT_TERTIARY,
+  onDark: CREAM,
+  onDarkSecondary: TEXT_SECONDARY,
+
+  // Accent
+  emerald: EMERALD,
+  emeraldBright: EMERALD_BRIGHT,
+  emeraldDeep: EMERALD_DEEP,
+  emeraldTint: 'rgba(35,155,109,0.16)',
+  emeraldTintStrong: 'rgba(35,155,109,0.3)',
+  onEmerald: ON_EMERALD,
+  /** Primary action fill and the content colour that reads on it. */
+  primary: EMERALD,
+  onPrimary: ON_EMERALD,
+  scanning: EMERALD_BRIGHT,
+  locate: EMERALD_BRIGHT,
+
+  // Camera scrims
+  scrim: 'rgba(12,10,7,0.74)',
+  chipScrim: 'rgba(12,10,7,0.66)',
+  pinHole: '#1C1813',
 };
+
+/**
+ * Semantic status colours. Each reads as text on the dark pods and works as a
+ * solid fill — pair a fill with `onColor()` for its content colour.
+ */
+export const status = {
+  danger: '#F0564A',
+  warning: '#F5A524',
+  caution: '#F2C230',
+  good: EMERALD,
+  goodText: EMERALD_BRIGHT,
+  neutral: '#9A958C',
+  water: '#4DA3FF',
+};
+
+/** Near-black on bright fills, white on dark ones (crossover ≈ 4.4:1 either way). */
+export function onColor(hex: string): string {
+  const n = parseInt(hex.slice(1, 7), 16);
+  const lin = (v: number) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  return L > 0.19 ? ON_EMERALD : '#FFFFFF';
+}
 
 export type Scheme = 'light' | 'dark';
 
-/** Surface palette per appearance (iOS system colours). */
-export const palettes = {
-  light: {
-    label: '#000000',
-    labelStrong: '#1C1C1E',
-    labelSecondary: '#3A3A3C',
-    labelTertiary: '#6C6C70',
-    separator: '#E5E5EA',
-    fill: 'rgba(120,120,128,0.16)',
-    fillStrong: 'rgba(120,120,128,0.2)',
-    groundGrouped: '#F2F2F7',
-    groundMap: '#EDEFE8',
-    card: '#FFFFFF',
-    sheetGlass: 'rgba(250,250,252,0.62)',
-    popover: 'rgba(250,250,252,0.86)',
-    tag: 'rgba(255,255,255,0.9)',
-    voiceButton: '#1D1D1F',
-    voiceIcon: '#FFFFFF',
-    waveIdle: '#C7C7CC',
-    waveActive: '#1D1D1F',
-    checkBorder: '#AEAEB2',
-    numberBadge: '#E5E5EA',
-    emptyArt: '#E5E5EA',
-    statUrgent: '#A3130B',
-    statHealthy: '#17652B',
-    gps: '#17652B',
-    /** Green for small text/links (≥4.5:1 on cards). */
-    accentText: '#1E7B3C',
-  },
-  dark: {
-    label: '#FFFFFF',
-    labelStrong: '#F2F2F7',
-    labelSecondary: 'rgba(235,235,245,0.75)',
-    labelTertiary: 'rgba(235,235,245,0.55)',
-    separator: '#38383A',
-    fill: 'rgba(120,120,128,0.32)',
-    fillStrong: 'rgba(120,120,128,0.36)',
-    groundGrouped: '#000000',
-    groundMap: '#101311',
-    card: '#1C1C1E',
-    sheetGlass: 'rgba(30,30,32,0.62)',
-    popover: 'rgba(44,44,46,0.88)',
-    tag: 'rgba(28,28,30,0.88)',
-    voiceButton: '#F2F2F7',
-    voiceIcon: '#000000',
-    waveIdle: '#48484A',
-    waveActive: '#F2F2F7',
-    checkBorder: '#636366',
-    numberBadge: '#3A3A3C',
-    emptyArt: '#1C1C1E',
-    statUrgent: '#FF6961',
-    statHealthy: '#30D158',
-    gps: '#30D158',
-    accentText: '#4CD27A',
-  },
+/** Surface palette. The app is dark-only; both keys resolve to the same set. */
+const dark = {
+  label: CREAM,
+  labelStrong: '#FFF8EA',
+  labelSecondary: TEXT_SECONDARY,
+  labelTertiary: TEXT_TERTIARY,
+  separator: 'rgba(242,234,216,0.08)',
+  fill: 'rgba(242,234,216,0.08)',
+  fillStrong: 'rgba(242,234,216,0.13)',
+  groundGrouped: GROUND,
+  groundMap: BG,
+  card: POD,
+  cardRaised: POD_RAISED,
+  cardSunken: POD_SUNKEN,
+  sheetGlass: 'rgba(20,17,12,0.78)',
+  popover: 'rgba(28,24,19,0.97)',
+  tag: 'rgba(28,24,19,0.94)',
+  voiceButton: EMERALD,
+  voiceIcon: ON_EMERALD,
+  waveIdle: 'rgba(242,234,216,0.18)',
+  waveActive: EMERALD_BRIGHT,
+  checkBorder: 'rgba(242,234,216,0.28)',
+  numberBadge: 'rgba(35,155,109,0.18)',
+  emptyArt: POD,
+  statUrgent: '#F0564A',
+  statHealthy: EMERALD_BRIGHT,
+  gps: EMERALD_BRIGHT,
+  accent: EMERALD,
+  accentBright: EMERALD_BRIGHT,
+  accentDeep: EMERALD_DEEP,
+  accentTint: 'rgba(35,155,109,0.16)',
+  onAccent: ON_EMERALD,
+  /** Green for small text/links (≥4.5:1 on cards). */
+  accentText: EMERALD_BRIGHT,
 };
+
+export const palettes = { light: dark, dark };
 
 export type Palette = (typeof palettes)['light'];
 
+/**
+ * Glass materials.
+ *   dark  — translucent chrome floating over the camera / map
+ *   light — a raised, almost opaque pod on a dark ground (name kept for callers)
+ * Both share the emerald selection lens with near-black content on it.
+ */
+const glassShared = {
+  lens: EMERALD,
+  lensEdge: EMERALD_BRIGHT,
+  /** Content colour on the lens. */
+  active: ON_EMERALD,
+  idle: '#EFE8D8',
+  /** Accent colour for icons that are not on the lens. */
+  accent: EMERALD_BRIGHT,
+  text: CREAM,
+  textSecondary: TEXT_SECONDARY,
+  divider: 'rgba(242,234,216,0.09)',
+  pin: CREAM,
+  pinHole: POD,
+  searching: 'rgba(242,234,216,0.09)',
+};
+
 export const glass = {
   dark: {
-    fill: 'rgba(24,24,26,0.34)',
-    highlight: 0.18,
-    rimTop: 'rgba(255,255,255,0.5)',
-    rim: 'rgba(255,255,255,0.22)',
-    rimBottom: 'rgba(255,255,255,0.12)',
-    shadowOpacity: 0.24,
-    lens: 'rgba(255,255,255,0.2)',
-    lensEdge: 'rgba(255,255,255,0.35)',
-    active: '#5BD47E',
-    idle: '#FFFFFF',
-    text: '#FFFFFF',
-    textSecondary: 'rgba(255,255,255,0.85)',
-    divider: 'rgba(255,255,255,0.18)',
-    pin: '#FFFFFF',
-    pinHole: '#3A3A3C',
-    searching: 'rgba(255,255,255,0.12)',
+    fill: 'rgba(20,17,12,0.78)',
+    highlight: 0.08,
+    rimTop: 'rgba(242,234,216,0.16)',
+    rim: 'rgba(242,234,216,0.07)',
+    rimBottom: 'rgba(0,0,0,0.4)',
+    shadowOpacity: 0.45,
+    ...glassShared,
   },
   light: {
-    fill: 'rgba(250,250,252,0.5)',
-    highlight: 0.55,
-    rimTop: 'rgba(255,255,255,0.95)',
-    rim: 'rgba(0,0,0,0.08)',
-    rimBottom: 'rgba(0,0,0,0.08)',
-    shadowOpacity: 0.12,
-    lens: 'rgba(0,0,0,0.06)',
-    lensEdge: 'rgba(255,255,255,0.8)',
-    active: '#1E7B3C',
-    idle: '#1C1C1E',
-    text: '#000000',
-    textSecondary: 'rgba(60,60,67,0.85)',
-    divider: 'rgba(60,60,67,0.18)',
-    pin: '#1C1C1E',
-    pinHole: '#FFFFFF',
-    searching: 'rgba(0,0,0,0.08)',
+    fill: 'rgba(39,33,25,0.95)',
+    highlight: 0.1,
+    rimTop: 'rgba(242,234,216,0.2)',
+    rim: 'rgba(242,234,216,0.08)',
+    rimBottom: 'rgba(0,0,0,0.35)',
+    shadowOpacity: 0.45,
+    ...glassShared,
   },
 };
 
 export type GlassTone = keyof typeof glass;
 
-// ── Severity ──────────────────────────────────────────────────────────────────
+// ── Shape & type ──────────────────────────────────────────────────────────────
 
-/** Bright status discs on dark glass (camera). */
-export const severityOnDark: Record<string, string> = {
-  high: '#FF453A',
-  medium: '#FF9F0A',
-  low: '#FFD60A',
-  none: '#30D158',
-  unknown: '#8E8E93',
+export const radii = { chip: 16, card: 24, pod: 28, sheet: 36 };
+
+/** Shared text styles so every screen's hierarchy reads the same. */
+export const typography = {
+  display: { fontSize: 34, fontWeight: '800', letterSpacing: -1, lineHeight: 40, color: CREAM } satisfies TextStyle,
+  title: { fontSize: 24, fontWeight: '700', letterSpacing: -0.5, color: CREAM } satisfies TextStyle,
+  section: { fontSize: 19, fontWeight: '700', letterSpacing: -0.2, color: CREAM } satisfies TextStyle,
+  body: { fontSize: 16, lineHeight: 23, color: CREAM } satisfies TextStyle,
+  secondary: { fontSize: 15, lineHeight: 21, color: TEXT_SECONDARY } satisfies TextStyle,
+  caption: { fontSize: 13, lineHeight: 18, color: TEXT_TERTIARY } satisfies TextStyle,
 };
 
-/** Map pins and list dots on light surfaces. */
+// ── Severity ──────────────────────────────────────────────────────────────────
+
+/** Bright status discs on dark chrome (camera). */
+export const severityOnDark: Record<string, string> = {
+  high: status.danger,
+  medium: status.warning,
+  low: status.caution,
+  none: EMERALD_BRIGHT,
+  unknown: status.neutral,
+};
+
+/** Map pins and list dots. */
 export const severityPin: Record<string, string> = {
-  high: '#D70015',
-  medium: '#D86A00',
-  low: '#FFC400',
-  none: '#248A3D',
-  unknown: '#8E8E93',
+  high: '#E5342A',
+  medium: '#E8841C',
+  low: '#F2C230',
+  none: EMERALD,
+  unknown: '#8A857C',
 };
 
 /** Solid chips ("Act within 3 days") on sheets. */
 export const severityChip: Record<string, { bg: string; fg: string }> = {
-  high: { bg: '#C4170C', fg: '#FFFFFF' },
-  medium: { bg: '#C4570A', fg: '#FFFFFF' },
-  low: { bg: '#C99A06', fg: '#111827' },
-  none: { bg: '#248A3D', fg: '#FFFFFF' },
-  unknown: { bg: '#6B7280', fg: '#FFFFFF' },
+  high: { bg: '#D7362A', fg: '#FFFFFF' },
+  medium: { bg: status.warning, fg: '#1A1200' },
+  low: { bg: status.caution, fg: '#1A1400' },
+  none: { bg: EMERALD, fg: ON_EMERALD },
+  unknown: { bg: '#3A342C', fg: CREAM },
 };
 
-/** Count badges in the report, per appearance. */
-export const severityBadge: Record<Scheme, Record<string, { bg: string; fg: string }>> = {
-  light: {
-    high: { bg: '#FDE3E1', fg: '#A3130B' },
-    medium: { bg: '#FDEBD9', fg: '#8F3F00' },
-    low: { bg: '#FFF4CC', fg: '#6E5300' },
-    none: { bg: '#DDF3E3', fg: '#17652B' },
-    unknown: { bg: '#E5E5EA', fg: '#1C1C1E' },
-  },
-  dark: {
-    high: { bg: 'rgba(255,69,58,0.22)', fg: '#FF6961' },
-    medium: { bg: 'rgba(255,159,10,0.22)', fg: '#FFB340' },
-    low: { bg: 'rgba(255,214,10,0.2)', fg: '#FFD60A' },
-    none: { bg: 'rgba(48,209,88,0.2)', fg: '#30D158' },
-    unknown: { bg: 'rgba(142,142,147,0.26)', fg: '#D1D1D6' },
-  },
+/** Count badges in the report. */
+const badge = {
+  high: { bg: 'rgba(240,86,74,0.18)', fg: '#FF8075' },
+  medium: { bg: 'rgba(245,165,36,0.18)', fg: '#FFBC4A' },
+  low: { bg: 'rgba(242,194,48,0.16)', fg: '#FFD65C' },
+  none: { bg: 'rgba(35,155,109,0.18)', fg: EMERALD_BRIGHT },
+  unknown: { bg: 'rgba(242,234,216,0.1)', fg: '#D8D1C2' },
 };
+export const severityBadge: Record<Scheme, Record<string, { bg: string; fg: string }>> = { light: badge, dark: badge };
 
 /** Health heat-map ramp, cool (healthy) → warm (urgent). */
 export const heat: Record<string, string> = {
-  none: '#2A9D8F',
-  low: '#F2C14E',
-  medium: '#E07B28',
-  high: '#B3261E',
-  unknown: '#9A9A9A',
+  none: EMERALD,
+  low: '#F2C230',
+  medium: '#E8841C',
+  high: '#E5342A',
+  unknown: '#6B665E',
 };
 
 export const severityLabel: Record<string, string> = {
@@ -263,10 +324,10 @@ export const timing = {
 
 // ── Appearance ────────────────────────────────────────────────────────────────
 
-/** Current appearance: palette, glass tone and scheme, following the phone setting. */
+/** Current appearance. Always the dark palette — the design is dark-only. */
 export function useTheme() {
-  const scheme: Scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-  return { scheme, c: palettes[scheme], g: glass[scheme], tone: scheme as GlassTone };
+  const scheme: Scheme = 'dark';
+  return { scheme, c: palettes.dark, g: glass.dark, tone: 'dark' as GlassTone };
 }
 
 /**

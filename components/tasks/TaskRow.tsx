@@ -13,14 +13,14 @@ import { Check, Trash } from '../glass/Icons';
 import { ActionIcon } from '../insights/Visuals';
 import type { ActionType } from '../../lib/db';
 import { doneLabel, dueLabel, groupFor, repeatLabel, TaskIcon, TaskItem } from '../../lib/tasks';
-import { colors, makeStyles, useTheme } from '../../lib/theme';
+import { colors, makeStyles, status, useTheme } from '../../lib/theme';
 
 export const TASK_COLOR = {
-  overdue: '#D70015',
-  today: '#D86A00',
-  week: '#248A3D',
-  later: '#8E8E93',
-  water: '#0A84FF',
+  overdue: status.danger,
+  today: status.warning,
+  week: status.good,
+  later: status.neutral,
+  water: status.water,
 };
 
 const ACTION_TYPES = new Set(['sprayed', 'pruned', 'fertilised', 'removed_leaves', 'watered', 'rained', 'none']);
@@ -124,7 +124,7 @@ export default function TaskRow({ item, subject, now, compact, onPress, onComple
         )}
         {done ? (
           <View style={[styles.check, styles.checkOn]}>
-            <Check size={22} color="#FFFFFF" />
+            <Check size={22} color={colors.onPrimary} />
           </View>
         ) : onComplete ? (
           <PressableScale
@@ -135,7 +135,7 @@ export default function TaskRow({ item, subject, now, compact, onPress, onComple
           >
             {checked ? (
               <Animated.View entering={ZoomIn.springify().damping(11)}>
-                <Check size={24} color="#FFFFFF" />
+                <Check size={24} color={colors.onPrimary} />
               </Animated.View>
             ) : (
               <Check size={22} color={c.checkBorder} />
@@ -170,7 +170,7 @@ export default function TaskRow({ item, subject, now, compact, onPress, onComple
 const useStyles = makeStyles((c) => ({
   wrap: { backgroundColor: c.card },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 68, paddingLeft: 12, paddingRight: 10, paddingVertical: 8 },
-  icon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  icon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   text: { flex: 1, gap: 3 },
   title: { fontSize: 17, fontWeight: '600', color: c.label },
   titleDone: { color: c.labelTertiary, textDecorationLine: 'line-through' },
@@ -193,6 +193,6 @@ const useStyles = makeStyles((c) => ({
   drawer: { paddingHorizontal: 14, paddingBottom: 12, gap: 10 },
   why: { fontSize: 15, lineHeight: 21, color: c.labelSecondary },
   drawerButtons: { flexDirection: 'row', gap: 8 },
-  drawerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingHorizontal: 16, borderRadius: 14, backgroundColor: c.fill },
+  drawerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingHorizontal: 16, borderRadius: 24, backgroundColor: c.fill },
   drawerText: { fontSize: 16, fontWeight: '600', color: c.label },
 }));

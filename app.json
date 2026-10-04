@@ -1,10 +1,11 @@
 {
   "expo": {
-    "name": "agriOS",
+    "name": "AgriOS",
     "slug": "agriOS",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
     "scheme": "agrios",
     "assetBundlePatterns": [
       "assets/**",
@@ -21,7 +22,9 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#2D6A4F"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/adaptive-icon-mono.png",
+        "backgroundColor": "#1C1813"
       },
       "permissions": [
         "android.permission.CAMERA",
@@ -61,9 +64,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#2D6A4F",
+          "backgroundColor": "#1C1813",
           "image": "./assets/splash-icon.png",
-          "imageWidth": 140
+          "imageWidth": 160
         }
       ],
       "expo-image",

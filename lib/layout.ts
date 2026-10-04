@@ -3,9 +3,11 @@
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const SIDE = 20;
-export const TAB_BAR_HEIGHT = 62;
-export const MINI_SIZE = 58;
-export const ACCESSORY_HEIGHT = 58;
+export const TAB_BAR_HEIGHT = 68;
+/** Diameter of a tab-bar item's selection disc. */
+export const TAB_ITEM = 52;
+export const MINI_SIZE = 60;
+export const ACCESSORY_HEIGHT = 60;
 export const ACCESSORY_GAP = 8;
 
 export function useChromeInsets() {

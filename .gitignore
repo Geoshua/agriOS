@@ -20,3 +20,10 @@ __pycache__/
 # Hub runtime data
 server/soil-cache.json
 server/outcome-stats.json
+
+# Video production (Remotion project lives in video/)
+video/node_modules/
+video/out/
+video/work/
+video/public/footage/
+video/public/vo/

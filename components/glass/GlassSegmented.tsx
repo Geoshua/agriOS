@@ -1,11 +1,12 @@
 /**
- * GlassSegmented — a grouped glass control whose selection is a lighter glass
+ * GlassSegmented — a grouped glass control whose selection is a solid emerald
  * "lens" that glides between items (tab bar, scan-mode rail, map layer switch).
+ * Content on the lens turns near-black; everything else stays cream.
  *
- * The lens springs to the measured frame of the selected item and briefly
- * stretches along the travel axis for a liquid feel. Item tint cross-fades
- * from idle to active as the lens arrives; with an animated `tone` it also
- * blends between the dark and light palettes.
+ * The lens springs to the measured frame of the selected item (or a fixed
+ * `lensSize` disc centred in it) and briefly stretches along the travel axis
+ * for a liquid feel. Item tint cross-fades from idle to active as the lens
+ * arrives; with an animated `tone` it also blends between the two materials.
  */
 
 import React, { useEffect } from 'react';
@@ -48,6 +49,10 @@ interface Props {
   direction: 'row' | 'column';
   /** 'stack' = icon over label (tab bar, rail); 'inline' = icon beside label (map layer switch). */
   layout?: 'stack' | 'inline';
+  /** Hide the text labels (icon-only tab bar). Accessibility labels are kept. */
+  showLabels?: boolean;
+  /** Fixed lens diameter, centred in the item, instead of the item's full frame. */
+  lensSize?: number;
   tone?: GlassTone | SharedValue<number>;
   /** Overrides the tone's palette (static tone only). */
   palette?: Partial<SegmentPalette>;
@@ -74,6 +79,8 @@ export default function GlassSegmented({
   onSelect,
   direction,
   layout = 'stack',
+  showLabels = true,
+  lensSize,
   tone: toneProp,
   palette,
   radius,
@@ -114,10 +121,14 @@ export default function GlassSegmented({
     const fs = frames.value;
     const idx = fs.map((_, i) => i);
     const pick = (k: keyof Frame) => (fs.length > 1 ? interpolate(position.value, idx, fs.map((f) => f[k]), Extrapolation.CLAMP) : fs[0][k]);
-    const x = pick('x');
-    const y = pick('y');
-    const w = pick('w');
-    const h = pick('h');
+    const fx = pick('x');
+    const fy = pick('y');
+    const fw = pick('w');
+    const fh = pick('h');
+    const w = lensSize ?? fw;
+    const h = lensSize ?? fh;
+    const x = lensSize ? fx + (fw - lensSize) / 2 : fx;
+    const y = lensSize ? fy + (fh - lensSize) / 2 : fy;
     const s = stretch.value;
     const bg = animatedTone
       ? interpolateColor(animatedTone.value, [0, 1], [glass.dark.lens, glass.light.lens])
@@ -139,7 +150,7 @@ export default function GlassSegmented({
         horizontal ? { scaleY: 1 + 0.03 * s } : { scaleX: 1 + 0.04 * s },
       ],
     };
-  }, [horizontal, staticPalette?.lens, staticPalette?.lensEdge]);
+  }, [horizontal, lensSize, staticPalette?.lens, staticPalette?.lensEdge]);
 
   return (
     <Glass radius={radius} tone={tone} highlightHeight={highlightHeight} style={style} pointerEvents={pointerEvents}>
@@ -159,6 +170,7 @@ export default function GlassSegmented({
             onPress={() => onSelect(i)}
             onLayout={(e) => onItemLayout(i, e)}
             layout={layout}
+            showLabel={showLabels}
             staticPalette={staticPalette}
             tone={animatedTone}
             style={[horizontal && layout === 'stack' ? { flex: 1 } : null, itemStyle]}
@@ -178,6 +190,7 @@ function SegmentButton({
   onPress,
   onLayout,
   layout,
+  showLabel,
   staticPalette,
   tone,
   style,
@@ -189,6 +202,7 @@ function SegmentButton({
   onPress: () => void;
   onLayout: (e: LayoutChangeEvent) => void;
   layout: 'stack' | 'inline';
+  showLabel: boolean;
   staticPalette: SegmentPalette | null;
   tone: SharedValue<number> | null;
   style: StyleProp<ViewStyle>;
@@ -220,12 +234,14 @@ function SegmentButton({
       {variants.map((v, vi) => (
         <VariantLayer key={vi} {...v} index={index} position={position} tone={tone} first={vi === 0} layout={layout}>
           {item.icon(v.color)}
-          <Text
-            style={[layout === 'stack' ? styles.labelStack : styles.labelInline, { color: v.color }]}
-            numberOfLines={1}
-          >
-            {item.label}
-          </Text>
+          {showLabel && (
+            <Text
+              style={[layout === 'stack' ? styles.labelStack : styles.labelInline, { color: v.color }]}
+              numberOfLines={1}
+            >
+              {item.label}
+            </Text>
+          )}
         </VariantLayer>
       ))}
     </PressableScale>
@@ -272,8 +288,8 @@ const styles = StyleSheet.create({
   lens: { position: 'absolute', left: 0, top: 0, borderTopWidth: 1 },
   itemStack: { alignItems: 'center', justifyContent: 'center' },
   itemInline: { justifyContent: 'center' },
-  innerStack: { alignItems: 'center', justifyContent: 'center', gap: 1 },
+  innerStack: { alignItems: 'center', justifyContent: 'center', gap: 2 },
   innerInline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  labelStack: { fontSize: 12, fontWeight: '600' },
-  labelInline: { fontSize: 15, fontWeight: '600' },
+  labelStack: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
+  labelInline: { fontSize: 15, fontWeight: '700' },
 });

@@ -8,6 +8,7 @@ import { seedDemoDataIfEmpty } from '../lib/seed';
 import { loadSettings } from '../lib/settings';
 import { syncOutcomes } from '../lib/outcomes';
 import { useShambaStore } from '../lib/store';
+import { colors } from '../lib/theme';
 
 // Deep links into /plant/… or /block/… still get the tabs underneath, so Back works.
 export const unstable_settings = { initialRouteName: '(tabs)' };
@@ -38,7 +39,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000' } }}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
         <Stack.Screen name="(tabs)" />
       </Stack>
     </GestureHandlerRootView>

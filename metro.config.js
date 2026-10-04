@@ -20,4 +20,9 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return (defaultResolve ?? context.resolveRequest)(context, moduleName, platform);
 };
 
+// video/ is a separate Remotion project with its own node_modules; keep Metro out of it.
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const VIDEO_DIR = new RegExp(`^${escapeRe(path.join(__dirname, 'video'))}[\\\\/].*`);
+config.resolver.blockList = [].concat(config.resolver.blockList ?? [], VIDEO_DIR);
+
 module.exports = config;
