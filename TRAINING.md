@@ -429,6 +429,24 @@ python scripts/model_training/train.py --data-dir ~/bracol_small --output-dir ./
 python scripts/model_training/evaluate.py --data-dir ~/bracol_small --model-dir ./output
 ```
 
+## Testing in the emulator's virtual scene
+
+The Android emulator's back camera can show a 3D room with two picture slots (a wall poster and
+a table poster). Put held-out leaf photos there to point the scan tab at "real" leaves:
+
+```bash
+node scripts/emulator-scene.mjs --wall posters/rust.jpg --table posters/healthy.jpg
+```
+
+- Use **validation-split** images (Keras uses the first 20% of each class folder, sorted), never training images.
+- Pad each photo to a square with its own background colour rather than cropping — the model was
+  trained on whole leaves, and the poster slots are square.
+- In the emulator window, hold **Alt** and use **W/A/S/D + mouse** to walk up to a poster until the
+  leaf fills the frame. Pointed at the room itself, the scan correctly shows "Not sure".
+- Swap images live: Extended controls (⋯) → Camera → Virtual scene images.
+- Expect lower confidence than on the raw files: the camera re-renders the poster with room lighting
+  and perspective, which is a (weak) stand-in for field conditions.
+
 ## On-device LLM: tested, kept off by default
 
 Goal: let Noor type or say a question and get an answer, offline. Measured on a desktop with the
