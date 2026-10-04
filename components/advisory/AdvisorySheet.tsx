@@ -31,6 +31,7 @@ import PressableScale from '../glass/PressableScale';
 import { Backdrop } from '../glass/Glass';
 import { ChevronUp, Close, Share as ShareIcon, TrendDown } from '../glass/Icons';
 import SpeechInput from '../SpeechInput';
+import ActionLogger, { CARE_TYPES } from '../insights/ActionLogger';
 import { Checklist, LogButton, NumberedList, SeverityChip, toSteps, useVoice, VoiceBar } from './parts';
 import { makeStyles, sentenceCase, spring, useTheme } from '../../lib/theme';
 import { withAlpha } from '../../lib/useTween';
@@ -38,6 +39,8 @@ import type { LogState } from '../../lib/useLogIssue';
 import { useShambaStore } from '../../lib/store';
 import { fetchAdvisory, runCloudOffload } from '../../lib/inference';
 import { queueOffload } from '../../lib/db';
+import { fetchSoilData, getSoilAdvisory, SOIL_SOURCE_LABEL, SoilProfile } from '../../lib/soil';
+import { DEMO_FARM, DEMO_MODE } from '../../lib/config';
 
 export type Detent = 'closed' | 'medium' | 'full';
 const DETENT_POS: Record<Detent, number> = { closed: 0, medium: 1, full: 2 };
@@ -49,6 +52,8 @@ interface Props {
   logState: LogState;
   /** Plant the last log was grouped with, if any. */
   plantName?: string | null;
+  /** Scan logged from this detection, if any — actions are linked to it. */
+  loggedIssueId?: number | null;
   onLog: (notes?: string) => void;
   detent: Detent;
   onDetentChange: (d: Detent) => void;
@@ -59,7 +64,7 @@ interface Props {
 const INSET = 8;
 const RADIUS = 47;
 
-export default function AdvisorySheet({ disease: liveDisease, confidence: liveConfidence, logState, plantName, onLog: log, detent, onDetentChange, pos }: Props) {
+export default function AdvisorySheet({ disease: liveDisease, confidence: liveConfidence, logState, plantName, loggedIssueId, onLog: log, detent, onDetentChange, pos }: Props) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const activeBlock = useShambaStore((s) => s.activeBlock);
@@ -92,13 +97,24 @@ export default function AdvisorySheet({ disease: liveDisease, confidence: liveCo
   // Cloud offload state for unknown disease ("Ask regional network" button).
   const [offloadState, setOffloadState] = useState<'idle' | 'loading' | 'queued' | 'done'>('idle');
 
-  // Fetch LLM advisory when the full sheet opens. Fires each time detent or disease changes.
+  // Soil where the scan happened — local grid / phone cache first, so it works offline.
+  const [soil, setSoil] = useState<SoilProfile | null>(null);
+  const soilPoint = lastKnownLocation ?? (DEMO_MODE ? DEMO_FARM : null);
+  async function lookupSoil(): Promise<SoilProfile | null> {
+    if (!soilPoint) return null;
+    const profile = await fetchSoilData(soilPoint.lat, soilPoint.lng).catch(() => null);
+    setSoil(profile);
+    return profile;
+  }
+
+  // Fetch LLM advisory when the full sheet opens, with the local soil pH as context.
   useEffect(() => {
     if (detent !== 'full' || !disease) return;
     setLlmAdvice(null);
     setLlmLoading(true);
     let cancelled = false;
-    fetchAdvisory({ diseaseId: disease.id, confidence, language: 'English' })
+    lookupSoil()
+      .then((profile) => fetchAdvisory({ diseaseId: disease.id, confidence, soilPh: profile?.ph, language: 'English' }))
       .then(advice => { if (!cancelled) { setLlmLoading(false); setLlmAdvice(advice); } })
       .catch(() => { if (!cancelled) setLlmLoading(false); });
     return () => { cancelled = true; };
@@ -329,6 +345,18 @@ export default function AdvisorySheet({ disease: liveDisease, confidence: liveCo
               </Animated.View>
             )}
 
+            <Animated.View entering={FadeInDown.duration(320).delay(165)} style={styles.section}>
+              <ActionLogger
+                key={disease.id}
+                types={disease.id === 'unknown' || disease.id === 'healthy' ? CARE_TYPES : undefined}
+                plantId={null}
+                block={activeBlock}
+                issueId={loggedIssueId ?? null}
+                diseaseId={disease.id}
+                title={loggedIssueId ? 'What did you do?' : 'What did you do? (log the scan first to link it)'}
+              />
+            </Animated.View>
+
             <Animated.View entering={FadeInDown.duration(320).delay(190)} style={styles.section}>
               <Text style={styles.sectionTitle}>What It Is</Text>
               <Text style={styles.card}>{disease.description}</Text>
@@ -353,6 +381,16 @@ export default function AdvisorySheet({ disease: liveDisease, confidence: liveCo
               <Animated.View entering={FadeInDown.duration(320).delay(260)} style={styles.section}>
                 <Text style={styles.sectionTitle}>Treatment</Text>
                 <NumberedList steps={treatment} />
+              </Animated.View>
+            )}
+
+            {soil && (
+              <Animated.View entering={FadeInDown.duration(320).delay(300)} style={styles.section}>
+                <Text style={styles.sectionTitle}>Soil Here</Text>
+                <View style={styles.notesCard}>
+                  <Text style={styles.soilLine}>{getSoilAdvisory(soil).phAdvice}</Text>
+                  <Text style={styles.soilMeta}>SoilGrids · ~250 m · {SOIL_SOURCE_LABEL[soil.source]}</Text>
+                </View>
               </Animated.View>
             )}
 
@@ -488,6 +526,8 @@ const useStyles = makeStyles((c, g) => ({
   aiHint: { fontSize: 15, color: c.labelSecondary, textAlign: 'center', marginTop: 4 },
   notesCard: { padding: 16, gap: 10, borderRadius: 26, backgroundColor: c.card },
   notesHint: { fontSize: 15, lineHeight: 21, color: c.labelSecondary },
+  soilLine: { fontSize: 16, lineHeight: 23, color: c.labelStrong },
+  soilMeta: { fontSize: 13, color: c.labelTertiary },
   impact: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', padding: 16, borderRadius: 26, backgroundColor: c.card },
   impactIcon: { width: 32, height: 32, borderRadius: 9, backgroundColor: '#C93400', alignItems: 'center', justifyContent: 'center' },
   impactTitle: { fontSize: 17, fontWeight: '600', color: c.label },

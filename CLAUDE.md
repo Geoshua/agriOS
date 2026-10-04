@@ -73,7 +73,7 @@ Do not claim higher accuracy than what validation set shows. If val accuracy is 
 |---|---|---|
 | BRACOL | Coffee leaf disease (4 classes + healthy) | Yes — baked into TFLite model |
 | assets/diseases.json | Advisory text per disease | Yes — bundled |
-| SoilGrids (ISRIC) | Soil pH + N + clay by GPS coord | No — fetched on demand |
+| SoilGrids (ISRIC) | Soil pH + N + C + clay by GPS coord (~250 m) | Yes for the farm area — bundled grid `assets/soil/local-grid.json`; elsewhere hub → online, cached on phone |
 | HF Whisper large-v3 | STT for 99 languages (no Gĩkũyũ — Swahili used) | No — falls back to text input |
 | Meta MMS-TTS (`mms-tts-kik`, `mms-tts-eng`) | Pretrained voices for voice packs (CC-BY-NC 4.0) | Yes — clips pre-generated |
 | ElevenLabs | English voice-pack clips (build time only) | Yes — clips pre-generated |
@@ -102,7 +102,7 @@ PHONE (offline-first)
 │
 ├── Map tab
 │     ├── Disease pins from SQLite (offline)
-│     └── Soil card → Hub /soil (cached) → SoilGrids direct
+│     └── Soil card → local grid → phone cache → Hub /soil (disk cache) → SoilGrids v2
 │
 ├── Plants tab — per-plant history + trend (offline)
 └── Report tab — summary stats (offline)
@@ -139,7 +139,9 @@ Data flow (when internet available):
 | `lib/db.ts` | SQLite: issues table + plants table, migrations |
 | `lib/store.ts` | Zustand: in-memory mirror of DB, current detection |
 | `lib/stt.ts` | STT: expo-audio recording + HF Whisper API |
-| `lib/soil.ts` | Soil data: SoilGrids REST API + advisory text |
+| `lib/soil.ts` | Soil data: bundled local grid → phone cache → hub → SoilGrids v2; advisory text |
+| `scripts/soil/build_local_grid.py` | Builds the offline soil grid for the farm area |
+| `lib/config.ts` (`DEMO_MODE`, `DEMO_FARM`) | Demo farm in Kiambu: seed, map, logged scans and soil use it instead of GPS |
 | `assets/diseases.json` | Offline disease knowledge base |
 | `assets/model/` | TFLite model + labels.json (gitignored, must be trained) |
 | `components/advisory/AdvisorySheet.tsx` | Disease detail sheet (medium/full detents), log-to-map |
@@ -150,6 +152,12 @@ Data flow (when internet available):
 | `app/(tabs)/settings.tsx` | Settings: voice & language packs |
 | `scripts/voice/build_packs.py` | Builds voice packs into `server/voice-packs/` |
 | `docs/VOICE.md` | Voice decisions, data honesty, GPU roadmap |
+| `lib/insights.ts` | Pure insight engine: health, pentagon axes, suggestions, outcomes (tested) |
+| `lib/useSubjectInsight.ts`, `components/insights/` | Tree/block report pages (`app/plant/[id]`, `app/block/[block]`), diagram, pentagon, history with photos, tagging |
+| `lib/watering.ts`, `lib/tasks.ts`, `app/tasks.tsx`, `components/tasks/` | Watering plans/status and the To Do list |
+| `lib/outcomes.ts` | "What worked" stats; hub sync (`POST /outcomes`, `GET /outcome-stats`) |
+| `docs/INSIGHTS.md` | How insights, learning loop, watering and tasks work |
+| `tests/` | `npm test` — Node's built-in runner, TS via type stripping |
 | `app/(tabs)/scan.tsx` | Camera + 1fps inference loop |
 | `app/(tabs)/map.tsx` | Disease pins + soil card |
 | `app/(tabs)/plants.tsx` | Plant tracking + scan history timeline |

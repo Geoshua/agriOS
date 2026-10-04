@@ -43,7 +43,7 @@
 
 ### 9. Soil data overlay (SoilGrids)
 - **What:** Soil pH, nitrogen, clay % shown for the farmer's location — contextualises disease risk
-- **How:** `lib/soil.ts` — tries hub `/soil` first (1-hour cache shared across all farmers on the LAN), then direct SoilGrids REST API; hub caches in-memory so 100 phones only make 1 upstream call per hour
+- **How:** `lib/soil.ts` — offline-first: a bundled SoilGrids grid for the farm area (~250 m cells, 4 KB, `scripts/soil/build_local_grid.py`) answers instantly; other points use the phone's cache (last 30 points), then the hub `/soil` (30-day cache persisted to disk), then the SoilGrids v2 API. Soil pH is shown on the map and in the advisory sheet, and passed to the AI advisory
 
 ### 10. Hub/cloud dual-mode server
 - **What:** Same `server/server.mjs` binary runs as a village hub (Pi/laptop at co-op) or cloud aggregation node; mode set by `ROLE=hub` / `ROLE=cloud` env var
@@ -106,7 +106,7 @@
 │                     → queueScan() anonymises GPS, queues    │
 │  POST /advisory   → Ollama Qwen2.5-3B-Instruct              │
 │                     → HF Qwen2-VL text (fallback)           │
-│  GET  /soil       → SoilGrids REST (1h in-memory cache)     │
+│  GET  /soil       → SoilGrids v2 (30-day disk cache)        │
 │  POST /offload    → proxies to cloud /classify (35s)        │
 │  POST /transcribe → HF Whisper large-v3                     │
 │  background       → flushSyncQueue() every 60s              │
@@ -137,7 +137,7 @@
 | Voice playback | Voice packs (downloaded once) → expo-speech | Yes |
 | Voice input (notes) | expo-av → hub /transcribe → HF Whisper | No — text fallback |
 | Log to map | GPS → findNearestPlant → SQLite | Yes |
-| Soil card | hub /soil (cached) → SoilGrids | No — skipped offline |
+| Soil card + advisory soil note | Bundled local grid → phone cache → hub → SoilGrids | Yes on the farm; elsewhere after first lookup |
 | "Ask regional network" | hub /offload → cloud — OR queued to SQLite | Queued if offline |
 | Data contribution | Anonymised GPS scan → hub queue → cloud /ingest | Batched on reconnect |
 | Regional heatmap | Cloud /heatmap → extension officer dashboard | Cloud only |
@@ -175,7 +175,7 @@
 | `lib/store.ts` | Zustand: currentDetection, lastFrameUri, lastKnownLocation |
 | `lib/location.ts` | getQuickLocation() (expo-location) |
 | `lib/useOffloadQueue.ts` | AppState-driven retry hook for pending cloud offloads |
-| `lib/soil.ts` | SoilGrids + hub /soil proxy |
+| `lib/soil.ts` | Offline soil grid + phone cache + hub /soil + SoilGrids v2 |
 | `lib/stt.ts` | STT recording + HF Whisper |
 | `lib/config.ts` | LOCAL_SERVER_URL (hub IP, set by operator) |
 | `assets/diseases.json` | Offline disease knowledge base (5 diseases + unknown) |

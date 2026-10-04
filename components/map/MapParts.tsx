@@ -9,6 +9,7 @@ import PressableScale from '../glass/PressableScale';
 import { ChevronDown, Close, PinGlyph, StatusDisc } from '../glass/Icons';
 import { colors, makeStyles, Scheme, sentenceCase, severityGlyph, severityLabel, severityPin, spring, timing, useTheme } from '../../lib/theme';
 import type { IssueRecord } from '../../lib/db';
+import { SOIL_SOURCE_LABEL } from '../../lib/soil';
 import type { SoilAdvisory, SoilProfile } from '../../lib/soil';
 
 // ── Pin ───────────────────────────────────────────────────────────────────────
@@ -335,7 +336,9 @@ export function SoilCard({ profile, advisory }: { profile: SoilProfile; advisory
             <Animated.View entering={FadeIn.duration(220).delay(80)} exiting={FadeOut.duration(120)} style={styles.soilBody}>
               <Text style={styles.soilAdvice}>{advisory.phAdvice}</Text>
               {advisory.phStatus !== 'optimal' && <Text style={styles.soilSub}>{advisory.generalAdvice}</Text>}
-              <Text style={styles.soilSource}>Source: SoilGrids (ISRIC) · 0–5 cm depth</Text>
+              <Text style={styles.soilSource}>
+                SoilGrids (ISRIC) · ~250 m · 0–5 cm · {SOIL_SOURCE_LABEL[profile.source]}
+              </Text>
             </Animated.View>
           )}
         </Glass>

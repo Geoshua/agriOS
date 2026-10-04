@@ -21,6 +21,7 @@ import CaptureButton from '../../components/scan/CaptureButton';
 import ModeRail from '../../components/scan/ModeRail';
 import DetectionAccessory from '../../components/scan/DetectionAccessory';
 import AdvisorySheet, { Detent } from '../../components/advisory/AdvisorySheet';
+import TagPrompt from '../../components/scan/TagPrompt';
 import { CLOUD_SERVER_URL, LOCAL_SERVER_URL } from '../../lib/config';
 
 const INFERENCE_INTERVAL_MS = 1200;
@@ -106,7 +107,7 @@ export default function ScanScreen() {
   const confidence = currentDetection?.result.confidence ?? 0;
   const spots = currentDetection?.result.spots ?? [];
   const { state: captureState, last: lastCapture, capture } = useManualCapture(cameraRef, isRunningRef);
-  const { state: logState, plantName: loggedPlant, log } = useLogIssue(disease, confidence, `${disease?.id}-${activeBlock}`);
+  const { state: logState, issueId: loggedIssueId, plantName: loggedPlant, log } = useLogIssue(disease, confidence, `${disease?.id}-${activeBlock}`);
 
   function openDetails() {
     if (!disease) return;
@@ -212,11 +213,15 @@ export default function ScanScreen() {
         confidence={confidence}
         logState={logState}
         plantName={loggedPlant}
+        loggedIssueId={loggedIssueId}
         onLog={log}
         detent={detent}
         onDetentChange={(d) => (d === 'closed' ? closeDetails() : setDetent(d))}
         pos={sheetPos}
       />
+
+      {/* Above the sheet, so it also works when logging from the advice. */}
+      <TagPrompt />
     </ScreenTransition>
   );
 }

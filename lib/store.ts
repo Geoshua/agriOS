@@ -53,6 +53,24 @@ interface ShambaStore {
   // Bumped when a voice pack is installed/removed so listeners re-read disk.
   voicePacksVersion: number;
   bumpVoicePacks: () => void;
+
+  // Bumped after any change to scans/trees/actions so screens reload from SQLite.
+  dataVersion: number;
+  bumpData: () => void;
+
+  // Scan just logged, waiting for the optional "Tag to a tree?" prompt.
+  pendingTag: PendingTag | null;
+  setPendingTag: (p: PendingTag | null) => void;
+}
+
+export interface PendingTag {
+  issueId: number;
+  block: string | null;
+  lat: number;
+  lng: number;
+  diseaseName: string;
+  /** Set once the farmer picked a tree, to show the confirmation state. */
+  taggedAs?: string | null;
 }
 
 export const useShambaStore = create<ShambaStore>((set) => ({
@@ -87,4 +105,10 @@ export const useShambaStore = create<ShambaStore>((set) => ({
   setVoiceLanguage: (code) => set({ voiceLanguage: code }),
   voicePacksVersion: 0,
   bumpVoicePacks: () => set((state) => ({ voicePacksVersion: state.voicePacksVersion + 1 })),
+
+  dataVersion: 0,
+  bumpData: () => set((state) => ({ dataVersion: state.dataVersion + 1 })),
+
+  pendingTag: null,
+  setPendingTag: (p) => set({ pendingTag: p }),
 }));

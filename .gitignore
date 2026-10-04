@@ -12,3 +12,6 @@ assets/model/
 
 expo-env.d.ts
 # @end expo-cli
+# Hub runtime data
+server/soil-cache.json
+server/outcome-stats.json
