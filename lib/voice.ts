@@ -31,6 +31,9 @@ export interface PlaybackInfo {
 }
 
 let player: AudioPlayer | null = null;
+// onDone of whatever is playing now — called when another playback stops it,
+// so every play button (advisory, read-aloud, chat) resets on its own.
+let activeDone: (() => void) | null = null;
 let deviceVoices: Promise<Speech.Voice[]> | null = null;
 
 async function hasDeviceVoice(tag: string): Promise<boolean> {
@@ -42,6 +45,7 @@ async function hasDeviceVoice(tag: string): Promise<boolean> {
 /** Speaks the advisory for `diseaseId` in the selected language (or `languageOverride`, e.g. a settings preview). */
 export async function playAdvisory(diseaseId: string, handlers: PlaybackHandlers = {}, languageOverride?: string): Promise<PlaybackInfo> {
   await stopAll();
+  handlers = track(handlers);
   const language = languageOverride ?? useShambaStore.getState().voiceLanguage;
 
   // 1. Pre-recorded pack clip
@@ -80,7 +84,33 @@ export async function playAdvisory(diseaseId: string, handlers: PlaybackHandlers
   return { source: 'device', language: spoken, durationSec: null };
 }
 
+/** Wraps onDone so it fires once, and remembers it so stopAll() can fire it. */
+function track(handlers: PlaybackHandlers): PlaybackHandlers {
+  let fired = false;
+  const done = () => {
+    if (fired) return;
+    fired = true;
+    if (activeDone === done) activeDone = null;
+    handlers.onDone?.();
+  };
+  activeDone = done;
+  return { onDone: done };
+}
+
+/**
+ * Speaks free text (page read-aloud, chat answers) with the phone's speech
+ * engine. The app's dynamic text is English, so it is spoken in English;
+ * pre-recorded local-language clips exist only for disease advice (playAdvisory).
+ */
+export async function speakText(text: string, handlers: PlaybackHandlers = {}): Promise<void> {
+  await stopAll();
+  const { onDone } = track(handlers);
+  Speech.speak(text, { language: 'en-US', rate: 0.9, onDone, onStopped: onDone, onError: onDone });
+}
+
 export async function stopAll(): Promise<void> {
+  const done = activeDone;
+  activeDone = null;
   if (player) {
     try {
       player.pause();
@@ -89,6 +119,7 @@ export async function stopAll(): Promise<void> {
     player = null;
   }
   await Speech.stop();
+  done?.();
 }
 
 /** Text that will be spoken for a disease in a language (for word-count timing estimates). */

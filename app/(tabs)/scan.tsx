@@ -15,6 +15,7 @@ import ScreenTransition from '../../components/glass/ScreenTransition';
 import PressableScale from '../../components/glass/PressableScale';
 import { Leaf } from '../../components/glass/Icons';
 import ScanTopBar from '../../components/scan/ScanTopBar';
+import ReadAloudButton from '../../components/ReadAloudButton';
 import ARSpots from '../../components/scan/ARSpots';
 import CameraGuides from '../../components/scan/CameraGuides';
 import CaptureButton from '../../components/scan/CaptureButton';
@@ -142,6 +143,11 @@ export default function ScanScreen() {
     return (
       <ScreenTransition background={colors.black} statusBar="light">
         <View style={styles.permission}>
+          <ReadAloudButton
+            tone="dark"
+            style={styles.permissionSpeak}
+            text="To check your coffee leaves, this app needs the camera. Tap the green button to allow the camera."
+          />
           <Leaf size={56} color="rgba(255,255,255,0.6)" />
           <Text style={styles.permissionTitle}>Scan your coffee leaves</Text>
           <Text style={styles.permissionBody}>agriOS needs the camera to spot rust, miners and other problems on your trees.</Text>
@@ -242,6 +248,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  permissionSpeak: { position: 'absolute', top: 64, right: 20 },
   permissionButtonText: { color: colors.white, fontSize: 17, fontWeight: '600' },
   networkPill: {
     position: 'absolute',

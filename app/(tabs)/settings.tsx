@@ -18,6 +18,7 @@ import PressableScale from '../../components/glass/PressableScale';
 import { Check, Download, Pause, Speaker, Trash } from '../../components/glass/Icons';
 import { colors, makeStyles, spring, timing, useTheme } from '../../lib/theme';
 import { useChromeInsets } from '../../lib/layout';
+import ReadAloudButton from '../../components/ReadAloudButton';
 import { useShambaStore } from '../../lib/store';
 import { saveSettings } from '../../lib/settings';
 import { playAdvisory, stopAll } from '../../lib/voice';
@@ -122,9 +123,21 @@ export default function SettingsScreen() {
         contentContainerStyle={[styles.content, { paddingTop: top + 4, paddingBottom: tabClearance + 40 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View entering={enter(0)} style={styles.header}>
-          <Text style={styles.title} accessibilityRole="header">Settings</Text>
-          <Text style={styles.subtitle}>Everything here works without internet.</Text>
+        <Animated.View entering={enter(0)} style={styles.headerRow}>
+          <View style={styles.header}>
+            <Text style={styles.title} accessibilityRole="header">Settings</Text>
+            <Text style={styles.subtitle}>Everything here works without internet.</Text>
+          </View>
+          <ReadAloudButton
+            text={() => {
+              const installed = VOICE_PACKS.filter((p) => states[p.code]?.kind === 'installed').map((p) => p.name);
+              return (
+                `Settings. Here you choose the language for spoken advice. Now it is ${selected?.name ?? voiceLanguage}. ` +
+                (installed.length ? `Downloaded: ${installed.join(' and ')}. ` : 'No language is downloaded yet. ') +
+                'Tap a language to choose it. Tap the arrow to download it once, near the co-op hub. Then it works with no signal.'
+              );
+            }}
+          />
         </Animated.View>
 
         <Animated.View entering={enter(1)} layout={layoutTransition} style={styles.section}>
@@ -319,7 +332,8 @@ function friendlyError(e: unknown): string {
 
 const useStyles = makeStyles((c) => ({
   content: { paddingHorizontal: 16, gap: 24 },
-  header: { gap: 2, paddingHorizontal: 4 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  header: { gap: 2, paddingHorizontal: 4, flexShrink: 1 },
   title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.7, lineHeight: 40, color: c.label },
   subtitle: { fontSize: 16, color: c.labelSecondary },
   section: { gap: 8 },

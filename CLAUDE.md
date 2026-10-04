@@ -104,6 +104,8 @@ PHONE (offline-first)
 │     ├── Disease pins from SQLite (offline)
 │     └── Soil card → local grid → phone cache → Hub /soil (disk cache) → SoilGrids v2
 │
+├── Ask tab — chat answered from local data only (lib/chat.ts, offline, no LLM)
+├── Speaker button on every page — reads the page aloud (expo-speech, offline)
 ├── Plants tab — per-plant history + trend (offline)
 └── Report tab — summary stats (offline)
 
@@ -150,6 +152,8 @@ Data flow (when internet available):
 | `components/SpeechInput.tsx` | Voice input UI, language picker |
 | `lib/voice.ts`, `lib/voicePacks.ts` | Advisory playback chain; voice-pack download/install |
 | `app/(tabs)/settings.tsx` | Settings: voice & language packs |
+| `app/(tabs)/chat.tsx`, `lib/chat.ts`, `lib/chatContext.ts` | "Ask" chat: keyword-matched answers from diseases.json + SQLite + bundled soil (offline, tested) |
+| `components/ReadAloudButton.tsx` | Speaker on every page; each screen passes a short spoken summary |
 | `scripts/voice/build_packs.py` | Builds voice packs into `server/voice-packs/` |
 | `docs/VOICE.md` | Voice decisions, data honesty, GPU roadmap |
 | `lib/insights.ts` | Pure insight engine: health, pentagon axes, suggestions, outcomes (tested) |

@@ -25,6 +25,21 @@ import { Bolt, Check, ChevronDown, ChevronLeft } from '../glass/Icons';
 import { colors, makeStyles, spring, timing, useTheme } from '../../lib/theme';
 import { FIELD_BLOCKS, FieldBlock, ScanMode, useShambaStore } from '../../lib/store';
 import { SIDE, useChromeInsets } from '../../lib/layout';
+import ReadAloudButton from '../ReadAloudButton';
+import diseaseData from '../../assets/diseases.json';
+
+const DISEASES = diseaseData.diseases as Record<string, { name: string; immediateAction: string }>;
+
+/** What the scanner's speaker says: how to scan, plus what it sees right now. */
+function scanPageText(block: string): string {
+  const how = `You are scanning Block ${block}. Hold one coffee leaf close to the camera, in daylight, and keep still.`;
+  const det = useShambaStore.getState().currentDetection;
+  if (!det || Date.now() - det.timestamp > 10_000) return `${how} The phone will show what it finds at the bottom of the screen.`;
+  const d = DISEASES[det.result.diseaseId];
+  if (!d || det.result.diseaseId === 'unknown') return `${how} Right now the picture is not clear enough to be sure. Move closer to one leaf.`;
+  if (det.result.diseaseId === 'healthy') return `${how} This leaf looks healthy.`;
+  return `${how} This looks like ${d.name}. Tap the card at the bottom to hear what to do.`;
+}
 
 export function PingDot({ active, size = 9 }: { active: boolean; size?: number }) {
   const ping = useSharedValue(0);
@@ -154,7 +169,8 @@ export default function ScanTopBar({ mode, scanning, onBack }: Props) {
         </View>
 
         {mode !== 'details' && (
-          <Animated.View entering={pillIn} exiting={pillOut}>
+          <Animated.View entering={pillIn} exiting={pillOut} style={styles.right}>
+            <ReadAloudButton text={() => scanPageText(activeBlock)} />
             <PressableScale
               onPress={() => setTorch(!torch)}
               accessibilityRole="switch"
@@ -205,6 +221,7 @@ const useStyles = makeStyles((c, g) => ({
   pillTitle: { color: g.text, fontSize: 17, fontWeight: '600' },
   pillValue: { color: g.textSecondary, fontSize: 17 },
   round: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  right: { flexDirection: 'row', gap: 10 },
   dot: { position: 'absolute', left: 0, top: 0 },
   menuWrap: { position: 'absolute', left: SIDE, width: 200, transformOrigin: 'top left' },
   menu: { paddingVertical: 4 },

@@ -31,6 +31,7 @@ import {
   SoilCard,
 } from '../../components/map/MapParts';
 import TileMap, { MapCircle, MapContext, MapMarker, TileMapHandle } from '../../components/map/TileMap';
+import ReadAloudButton from '../../components/ReadAloudButton';
 
 type Layer = 'pins' | 'health' | 'community';
 const LAYERS: Layer[] = ['pins', 'health', 'community'];
@@ -226,6 +227,24 @@ export default function MapScreen() {
         ? `${mapped.length} pin${mapped.length === 1 ? '' : 's'}${urgent ? ` · ${urgent} urgent` : ''}`
         : 'No issues logged yet';
 
+  // Spoken summary for the speaker button: pins, worst blocks, soil.
+  const SEVERITY_SPOKEN: Record<string, string> = { high: 'urgent problems', medium: 'problems', low: 'small problems', unknown: 'unclear scans', none: 'all healthy' };
+  function mapPageText(): string {
+    if (layer === 'community') {
+      return regionsMeta && regionsMeta.total > 0
+        ? `Community map. ${regionsMeta.total} scans from ${regionsMeta.villages} villages near you. Red areas have more disease.`
+        : 'Community map. There is no regional data yet. It needs the co-op hub.';
+    }
+    const pins = mapped.length
+      ? `Your field map shows ${mapped.length} logged ${mapped.length === 1 ? 'scan' : 'scans'}${urgent ? `, ${urgent} urgent` : ''}.`
+      : 'No problems are logged on your field map yet.';
+    const blockLine = blocks.length
+      ? ' ' + [...blocks].sort((a, b) => a.block.localeCompare(b.block)).map((b) => `Block ${b.block}: ${SEVERITY_SPOKEN[b.worst] ?? b.worst}.`).join(' ')
+      : '';
+    const soilLine = soilAdvisory ? ` Soil: ${soilAdvisory.phAdvice} ${soilAdvisory.generalAdvice}` : '';
+    return pins + blockLine + soilLine;
+  }
+
   const renderOverlays = (ctx: MapContext) => (
     <>
       {/* Health heat map: stacked soft discs approximate a gradient per scan. */}
@@ -365,11 +384,14 @@ export default function MapScreen() {
             <Text style={styles.title} accessibilityRole="header">Field Map</Text>
             <Text style={styles.subtitle}>{subtitle}</Text>
           </View>
-          <PressableScale onPress={recenter} disabled={!location} accessibilityRole="button" accessibilityLabel="Center on my location">
-            <Glass radius={24} style={styles.locate}>
-              <Locate />
-            </Glass>
-          </PressableScale>
+          <View style={styles.titleButtons}>
+            <ReadAloudButton style={styles.speak} text={mapPageText} />
+            <PressableScale onPress={recenter} disabled={!location} accessibilityRole="button" accessibilityLabel="Center on my location">
+              <Glass radius={24} style={styles.locate}>
+                <Locate />
+              </Glass>
+            </PressableScale>
+          </View>
         </View>
 
         <GlassSegmented
@@ -445,6 +467,8 @@ const useStyles = makeStyles((c) => ({
   title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.7, lineHeight: 40, color: c.label },
   subtitle: { fontSize: 16, fontWeight: '500', color: c.labelSecondary },
   locate: { width: 48, height: 48, marginTop: 4, alignItems: 'center', justifyContent: 'center' },
+  titleButtons: { flexDirection: 'row', gap: 10 },
+  speak: { marginTop: 4 },
   layerSwitch: { alignSelf: 'flex-start', height: 44 },
   layerItem: { height: 38, paddingHorizontal: 16 },
   legend: { position: 'absolute', left: SIDE, right: SIDE },

@@ -16,6 +16,7 @@ import { useChromeInsets } from '../../lib/layout';
 import ScreenTransition from '../../components/glass/ScreenTransition';
 import PressableScale from '../../components/glass/PressableScale';
 import { Leaf, Locate, ScanFrame, Sun } from '../../components/glass/Icons';
+import ReadAloudButton from '../../components/ReadAloudButton';
 
 const layoutTransition = LinearTransition.springify().damping(24).stiffness(220);
 const enter = (i: number) => FadeInDown.duration(360).delay(60 + i * 60);
@@ -90,9 +91,26 @@ export default function ReportScreen() {
           <Text style={styles.updatedText}>{empty ? `Pull to refresh · updated ${updated}` : `Updated ${updated}`}</Text>
         </Animated.View>
 
-        <Animated.View entering={enter(0)} style={styles.header}>
-          <Text style={styles.date}>{today}</Text>
-          <Text style={styles.title} accessibilityRole="header">Today</Text>
+        <Animated.View entering={enter(0)} style={styles.headerRow}>
+          <View style={styles.header}>
+            <Text style={styles.date}>{today}</Text>
+            <Text style={styles.title} accessibilityRole="header">Today</Text>
+          </View>
+          <ReadAloudButton
+            text={() => {
+              if (issues.length === 0) return `${today}. No scans today. Go to the field and scan your coffee leaves.`;
+              const list = found.map(([, d]) => `${d.name}, ${d.count} ${d.count === 1 ? 'time' : 'times'}`).join('; ');
+              const worst = farm?.worstBlock;
+              const next = worst?.insight.suggestions[0];
+              const worstLine = worst ? ` Block ${worst.block} needs the most care${next ? `: ${next.title}` : ''}.` : '';
+              return (
+                `${today}. You made ${issues.length} ${issues.length === 1 ? 'scan' : 'scans'} today. ` +
+                `${urgentCount} urgent. ${healthyCount} healthy.` +
+                (list ? ` Found today: ${list}.` : '') +
+                worstLine
+              );
+            }}
+          />
         </Animated.View>
 
         <Animated.View entering={enter(1)} style={styles.tiles}>
@@ -393,7 +411,8 @@ const useStyles = makeStyles((c) => ({
   content: { paddingHorizontal: 16, gap: 22 },
   updated: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   updatedText: { fontSize: 13, color: c.labelTertiary },
-  header: { gap: 2, paddingHorizontal: 4 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 },
+  header: { gap: 2, paddingHorizontal: 4, flexShrink: 1 },
   date: { fontSize: 16, fontWeight: '600', color: c.labelSecondary },
   title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.7, lineHeight: 40, color: c.label },
 
