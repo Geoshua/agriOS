@@ -59,11 +59,28 @@ If `confidence < confidenceThreshold` (default 0.60), always return `diseaseId: 
 
 When submitting to judges:
 - Acknowledge PlantVillage's studio-image bias explicitly in the submission write-up.
-- State that BRACOL images are field-condition coffee leaf photos (directly matches scenario).
+- State that BRACOL images are real Arabica leaves from Brazilian farms, shot on smartphones, but photographed **detached, on a white background, under partially controlled conditions** (per the dataset's own description) — not in-canopy field shots. Expect lower accuracy on live field frames than the validation number.
 - State that SoilGrids data is gridded at ~250 m resolution and may not reflect micro-scale field variation.
 - State confidence thresholds and what "unknown" means in the UI.
 
 Do not claim higher accuracy than what validation set shows. If val accuracy is 85%, say 85%.
+
+### Trained model — measured numbers (2026-10-04, see TRAINING.md → Results)
+
+MobileNetV2, BRACOL (1,342 images, 5 classes), dynamic-range quantised TFLite, **2.6 MB**.
+Scored on the held-out 20% split (267 images), using the exact shipped `.tflite` file:
+
+| Metric | Value |
+|---|---|
+| Validation accuracy | **91.4%** |
+| Accuracy when confident (≥ 0.60) | 96.4% |
+| Shown as "unknown" (< 0.60) | 15.7% |
+| Per-class recall | rust 0.92 · phoma 0.93 · miner 0.96 · healthy 0.96 · **brown eye 0.70** |
+| On-device (emulator, 25 held-out photos) | 17 correct · 8 unsure · 0 confidently wrong · ~1 s/image |
+
+Caveats to state when quoting these: the validation split was reused to choose settings across
+7 training runs, so 91.4% is an upper bound; brown eye has only 27 validation images; BRACOL leaves
+are detached on white backgrounds, so field accuracy will be lower. Not yet measured on a real ARM phone.
 
 ---
 
@@ -87,7 +104,7 @@ PHONE (offline-first)
 │     └── runInference(frameUri)
 │           Tier 0: Hub server /classify  (LAN, 3s timeout)
 │           Tier 1: HF Qwen2-VL           (online, 10s timeout)
-│           Tier 2: TFLite on-device      (offline, uncomment when trained)
+│           Tier 2: TFLite on-device      (offline, lib/tflite.ts, auto-detected)
 │           Tier 3: Mock cycling          (always works)
 │
 ├── AdvisorySheet (components/advisory/)

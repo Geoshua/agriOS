@@ -59,10 +59,14 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#2D6A4F"
+          "backgroundColor": "#2D6A4F",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 140
         }
       ],
-      "expo-image"
+      "expo-image",
+      "react-native-fast-tflite",
+      "llama.rn"
     ],
     "experiments": {
       "typedRoutes": true

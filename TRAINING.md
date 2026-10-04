@@ -227,7 +227,7 @@ Expected:
 ```
 -rw-r--r-- 1 user group 4.9M  plant_disease.tflite
 -rw-r--r-- 1 user group  512  labels.json
--rw-r--r-- 1 user group  12M  checkpoint_phase2.h5   (can delete after)
+-rw-r--r-- 1 user group  12M  checkpoint_phase2.keras   (can delete after)
 ```
 
 Inspect labels.json to confirm the mapping:
@@ -322,24 +322,137 @@ ls -lh assets/model/
 
 ---
 
-## Step 6 — Enable TFLite inference in the app
+## Step 6 — TFLite inference in the app (already wired)
 
-Open `lib/inference.ts`. The TFLite block is currently commented out starting at line ~155.
+No code changes needed. `lib/tflite.ts` loads `assets/model/plant_disease.tflite` with
+`react-native-fast-tflite` (the tfjs route can't read `.tflite` files) and is Tier 2 in
+`runInference()`. If the model files are missing, `metro.config.js` resolves them to an
+empty module and the app falls through to the mock — the repo still builds for people
+who haven't trained.
 
-**Install TF.js dependencies first (in the agriOS repo, not in the training venv):**
+Native modules mean Expo Go no longer works — use a development build:
 ```bash
-npx expo install @tensorflow/tfjs @tensorflow/tfjs-react-native
+npx expo prebuild --platform android
+npx expo run:android
 ```
 
-Then in `lib/inference.ts`, uncomment the TFLite section and add `runTFLiteInference` to the main `runInference` export. The comments in the file show exactly which lines to uncomment.
-
-The inference priority order becomes:
+The inference priority order:
 1. Hub server `/classify` (LAN, fastest)
 2. HF Qwen2-VL (online)
-3. **TFLite on-device (offline, now active)**
+3. **TFLite on-device (offline)** — same 0.60 threshold → `unknown`
 4. Mock cycling (dev fallback)
 
 ---
+
+## Running on Windows (what actually worked)
+
+- Native-Windows TensorFlow ≥ 2.11 has **no GPU support**. Train inside **WSL2** (Ubuntu); `nvidia-smi` works there out of the box with a current Windows driver.
+- Pin **`tensorflow[and-cuda]==2.16.2` + `keras==3.3.3`** (newer Keras 3 releases are not guaranteed to work with TF 2.16).
+- Keras 3 changes handled in `train.py`: checkpoints must end in `.keras`; TFLite export goes via `model.export()` → `from_saved_model()`.
+- If WSL has no DNS (`generateResolvConf = false`), download wheels on Windows with `pip download --platform manylinux_2_28_x86_64 …` and install offline in WSL. Copy wheels onto the WSL disk first — installing from `/mnt/c` crashed `uv` with a bus error.
+- WSL's virtual disk lives on C:. The CUDA wheels need ~6–8 GB free; a full C: makes the distro fail to start.
+
+## BRACOL: real structure and preparation
+
+The Mendeley download is **not** in class folders — it's `leaf/images/<id>.jpg` + `leaf/dataset.csv`
+(column `predominant_stress`: 0 healthy, 1 miner, 2 rust, 3 phoma, 4 cercospora, 5 mixed).
+The hosted ZIP is also **truncated**: extract with 7-Zip, which recovers ~1,400 of 1,747 images.
+
+```bash
+python scripts/model_training/prepare_bracol.py --src <extract>/coffee-datasets/leaf --out ~/bracol_small
+```
+Result used for training: 1,342 images — rust 465, phoma 346, miner 253, healthy 142, cercospora 136
+(mixed-stress images skipped; healthy is the class hit hardest by the truncation).
+
+**Honesty note:** BRACOL leaves were photographed detached, on a white background, under partially
+controlled conditions. They are real farm leaves and real phone cameras, but not in-canopy field
+frames — expect lower accuracy in the field than on the validation split.
+
+## Quantisation: measured, not assumed
+
+Same trained weights, four TFLite conversions, scored on the held-out split (run 2):
+
+| Conversion | Size | Val accuracy |
+|---|---|---|
+| Float32 | 9.5 MB | 86.5% |
+| **Dynamic range** (int8 weights, float activations) — **default** | **2.7 MB** | **85.0%** |
+| Full INT8, float I/O | 2.9 MB | 78.3% |
+| Full INT8, uint8 input | 2.9 MB | 78.3% |
+
+Full-integer quantisation of MobileNetV2's activations cost ~8 points and skewed predictions toward
+`healthy`. `train.py --quantization int8` is still available; `dynamic` is the default. Input for the
+dynamic model is float32 RGB in [0, 1]; `labels.json → input_dtype` tells the app which to feed.
+
+## Results (BRACOL, 2026-10-04, RTX 3070 Ti via WSL2)
+
+All numbers are the **shipped TFLite file** on the held-out 20% split (267 images), via
+`scripts/model_training/evaluate.py` — not the float model, not the training set.
+
+| Run | Change | TFLite val acc | Lowest recall |
+|---|---|---|---|
+| 1 | Script as originally written | 50.2% | 0.30 (brown eye) |
+| 2 | Input rescaled to [-1, 1]; backbone BN in inference mode | 78.3% (full INT8) | 0.59 |
+| 3 | Dynamic-range quant; softened class weights; label smoothing | 85.4% | 0.66 (miner) |
+| 4 | 320 px input + 100 layers @ 1e-4 | 68.5% — phase 2 collapsed | 0.00 |
+| 5 | Lower fine-tune LR (3e-5) | 77.5% — phase 2 collapsed | 0.44 |
+| 6 | **BatchNorm frozen in phase 2**; keep phase-1 weights if phase 2 is worse | 88.8% | 0.67 (brown eye) |
+| **7** | Class-weight power 0.75 (now the defaults) | **91.4%** | **0.70 (brown eye)** |
+
+**Shipped model (run 7):** 2.6 MB · 91.4% val accuracy · 96.4% accuracy on the 84% of images
+above the 0.60 threshold · 15.7% shown as "unknown".
+
+| Class | Precision | Recall | Val images |
+|---|---|---|---|
+| coffee_leaf_rust | 0.99 | 0.92 | 93 |
+| coffee_phoma | 1.00 | 0.93 | 69 |
+| coffee_leaf_miner | 0.80 | 0.96 | 50 |
+| healthy | 0.84 | 0.96 | 28 |
+| coffee_brown_eye | 0.79 | **0.70** | 27 |
+
+Goal was ≥ 88% accuracy **and** every recall ≥ 0.75: accuracy met; brown eye misses by 2 images
+(19/27 vs 21/27). Most brown-eye misses are predicted as leaf miner. Stopped tuning there on purpose:
+
+- **The validation set was reused to pick settings across 7 runs**, so 91.4% is optimistic.
+  Treat it as an upper bound until the model is scored on new images (ideally phone photos from the field).
+- Brown eye has only 136 images (27 in validation; ±~17% at 95% confidence). More data — the ~400
+  images lost to the truncated archive, or BRACOL's symptom-crop subset — will help more than tuning.
+
+**On the phone** (x86 emulator, 2 GB RAM, `app/dev-test.tsx`): 25 held-out photos → 17 correct,
+8 "unsure", **0 wrong-but-confident**; ~1.0 s per image including JPEG decode. The same 25 images on
+desktop give the same split (7 unsure), so the on-phone preprocessing matches training.
+Not yet measured on a real ARM phone.
+
+Reproduce (defaults = run 7):
+```bash
+python scripts/model_training/prepare_bracol.py --src <extract>/coffee-datasets/leaf --out ~/bracol_small
+python scripts/model_training/train.py --data-dir ~/bracol_small --output-dir ./output
+python scripts/model_training/evaluate.py --data-dir ~/bracol_small --model-dir ./output
+```
+
+## On-device LLM: tested, kept off by default
+
+Goal: let Noor type or say a question and get an answer, offline. Measured on a desktop with the
+exact phone model/quant through Ollama, then on the emulator (`app/dev-test.tsx`).
+
+1. **Free generation is unsafe at phone size.** Grounded on the pre-written facts, Qwen2.5-0.5B
+   answered *"Can I use DDT?"* with *"Yes, you can use DDT"*, and Swahili output was garbled.
+   So the LLM never writes advice: answers come only from `assets/advisory_responses.json`
+   (reviewed text, Swahili + English).
+2. **LLM as router** (pick which pre-written answer fits): Qwen2.5-0.5B 2/20, Qwen2.5-1.5B 7/20,
+   Qwen3-0.6B 7/20, Qwen3-1.7B 10/20 — every model failed almost all Swahili questions.
+3. **Keyword router** (`lib/advisor.ts`, Swahili stems + English) on a question set written *after*
+   the keywords were frozen: **17/24 correct, 1 wrong, 6 deferred** to "ask your extension officer".
+   Adding Qwen3-0.6B as a gated fallback (two prompts must agree): 18/24 correct but **3 wrong** —
+   it trades honest deferrals for confident wrong answers, which CLAUDE.md rule 5 forbids.
+
+4. **On the phone** (emulator, 2 GB RAM): Qwen3-0.6B loads and runs via llama.rn, but averaged
+   **~22 s per question**, and its two routing prompts never agreed on any of the 8 questions the
+   keywords missed — so it changed nothing (17 correct / 1 wrong / 6 deferred, same as keywords alone).
+
+Shipped design: icon question chips (deterministic, no typing) + keyword routing for free text;
+the Qwen router exists (`lib/localLlm.ts`, opt-in 382 MB download) behind
+`ON_DEVICE_LLM_ROUTER = false` in `lib/config.ts`. A ≥ 3B model on the hub (`server.mjs`,
+Ollama) is the realistic place for free-form questions.
 
 ## Supplementary datasets
 
@@ -397,6 +510,6 @@ BRACOL alone is ~1,700 images. More data improves generalisation, especially for
 ## What NOT to do
 
 - Do not push `plant_disease.tflite` or `labels.json` to GitHub — the `.gitignore` already excludes `assets/model/`. Transfer them to the phone/emulator directly.
-- Do not delete `checkpoint_phase2.h5` until you have verified `plant_disease.tflite` runs in the app.
+- Do not delete `checkpoint_phase2.keras` until you have verified `plant_disease.tflite` runs in the app.
 - Do not change `confidence_threshold` below 0.50 — the app uses this to decide when to show "uncertain, consult expert" instead of a specific diagnosis. False confidence is worse than admitting uncertainty.
 - Do not report accuracy without running per-class metrics (Step 4). 88% overall with 40% phoma recall is not a deployable model.

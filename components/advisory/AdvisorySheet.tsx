@@ -31,6 +31,7 @@ import PressableScale from '../glass/PressableScale';
 import { Backdrop } from '../glass/Glass';
 import { ChevronUp, Close, Share as ShareIcon, TrendDown } from '../glass/Icons';
 import SpeechInput from '../SpeechInput';
+import AskAdvisor from './AskAdvisor';
 import { Checklist, LogButton, NumberedList, SeverityChip, toSteps, useVoice, VoiceBar } from './parts';
 import { makeStyles, sentenceCase, spring, useTheme } from '../../lib/theme';
 import { withAlpha } from '../../lib/useTween';
@@ -332,6 +333,12 @@ export default function AdvisorySheet({ disease: liveDisease, confidence: liveCo
             <Animated.View entering={FadeInDown.duration(320).delay(190)} style={styles.section}>
               <Text style={styles.sectionTitle}>What It Is</Text>
               <Text style={styles.card}>{disease.description}</Text>
+            </Animated.View>
+
+            {/* Ask — pre-written answers, offline, spoken in Kiswahili / English */}
+            <Animated.View entering={FadeInDown.duration(320).delay(210)} style={styles.section}>
+              <Text style={styles.sectionTitle}>Ask</Text>
+              <AskAdvisor diseaseId={disease.id} />
             </Animated.View>
 
             {/* AI Advisory — fetched from Ollama via hub; falls back silently to nothing */}

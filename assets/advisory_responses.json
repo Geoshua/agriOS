@@ -1,0 +1,148 @@
+{
+  "_comment": "Pre-written advisory responses. Used (1) verbatim when no LLM is available, and (2) as the answer set for the on-device LLM, which only ROUTES a farmer's question to one of these intents — it never writes advice itself (a 0.5B model invented unsafe advice in testing, e.g. approving DDT). Swahili text needs review by a native speaker / extension officer before field deployment. Every response ends with a recommendation, never a command or an automatic action.",
+  "version": 1,
+  "languages": [
+    "sw",
+    "en"
+  ],
+  "intents": [
+    "summary",
+    "doNow",
+    "treatment",
+    "prevention",
+    "spread",
+    "safety",
+    "getHelp",
+    "outOfScope"
+  ],
+  "responses": {
+    "coffee_leaf_rust": {
+      "en": {
+        "summary": "This looks like coffee leaf rust. It makes orange or yellow powder under the leaves and spreads fast in warm, wet weather.",
+        "doNow": "We suggest you cut off the worst branches today and burn them. Do not put them in compost.",
+        "treatment": "A copper fungicide, like copper oxychloride, works well. Spray within 3 days, then every 2 weeks while the rains last.",
+        "prevention": "Prune so air can move between trees, keep weeds down, and feed the trees well. Strong trees fight rust better.",
+        "spread": "The orange powder blows in the wind and sticks to hands and clothes. Check the trees next to this one, and wash your hands after touching sick leaves.",
+        "safety": "When you spray, cover your skin, eyes and mouth, and keep children and animals away. Read the label for how much to use.",
+        "getHelp": "If more than a few trees have rust, it is a good idea to tell your extension officer or co-op, so neighbours can check too."
+      },
+      "sw": {
+        "summary": "Hii inaonekana kuwa kutu ya majani ya kahawa. Inaleta unga wa rangi ya machungwa au njano chini ya majani, na huenea haraka wakati wa joto na mvua.",
+        "doNow": "Tunashauri ukate matawi yaliyoathirika zaidi leo na uyachome. Usiyaweke kwenye mbolea.",
+        "treatment": "Dawa ya kuvu yenye shaba, kama copper oxychloride, inafaa. Nyunyizia ndani ya siku 3, kisha kila wiki 2 wakati wa mvua.",
+        "prevention": "Pogoa ili hewa ipite kati ya miti, ondoa magugu, na lisha miti vizuri. Miti yenye nguvu hupambana na kutu vizuri zaidi.",
+        "spread": "Unga wa machungwa hupeperushwa na upepo na hushika mikono na nguo. Kagua miti iliyo karibu, na osha mikono baada ya kugusa majani yaliyougua.",
+        "safety": "Unaponyunyizia, funika ngozi, macho na mdomo, na weka watoto na wanyama mbali. Soma maelekezo kwenye lebo kuhusu kiasi cha kutumia.",
+        "getHelp": "Kama miti mingi ina kutu, ni vizuri kumjulisha afisa ugani au chama cha ushirika, ili majirani nao wakague."
+      }
+    },
+    "coffee_leaf_miner": {
+      "en": {
+        "summary": "This looks like coffee leaf miner. Small caterpillars eat tunnels inside the leaf, leaving pale, dry patches.",
+        "doNow": "We suggest you pick off the damaged leaves and destroy them, then check the trees around this one.",
+        "treatment": "A neem-based spray is a good first choice. A pyrethroid spray also works. Spray in the early morning.",
+        "prevention": "Keep some shade over the coffee and do not spray insect killers too often, because they also kill the wasps that eat the miner.",
+        "spread": "The adult is a tiny moth that flies to nearby trees. Dry seasons make outbreaks worse.",
+        "safety": "When you spray, cover your skin, eyes and mouth, and keep children and animals away. Read the label for how much to use.",
+        "getHelp": "If many leaves are falling off, it is a good idea to ask your extension officer which spray is allowed in your area."
+      },
+      "sw": {
+        "summary": "Hii inaonekana kuwa mchimbaji wa majani ya kahawa. Viwavi wadogo hula njia ndani ya jani, na kuacha madoa meupe yaliyokauka.",
+        "doNow": "Tunashauri uchume majani yaliyoharibika na uyaangamize, kisha ukague miti iliyo karibu.",
+        "treatment": "Dawa ya mwarobaini ni chaguo zuri la kwanza. Dawa ya pyrethroid pia inafaa. Nyunyizia asubuhi na mapema.",
+        "prevention": "Acha kivuli juu ya kahawa na usinyunyizie dawa za wadudu mara nyingi, kwa sababu zinaua pia nyigu wanaokula wadudu hawa.",
+        "spread": "Mdudu mzima ni nondo mdogo anayeruka kwenda miti ya jirani. Kiangazi hufanya mlipuko kuwa mbaya zaidi.",
+        "safety": "Unaponyunyizia, funika ngozi, macho na mdomo, na weka watoto na wanyama mbali. Soma maelekezo kwenye lebo kuhusu kiasi cha kutumia.",
+        "getHelp": "Kama majani mengi yanaanguka, ni vizuri kumuuliza afisa ugani dawa ipi inaruhusiwa eneo lako."
+      }
+    },
+    "coffee_phoma": {
+      "en": {
+        "summary": "This looks like phoma leaf spot. It makes dark brown spots on leaves, often after cold, rainy weather on high ground.",
+        "doNow": "We suggest you remove the spotted leaves and prune thick branches so air and light can get in.",
+        "treatment": "A copper fungicide or a systemic fungicide can help. Avoid watering from above the leaves.",
+        "prevention": "Windbreaks protect trees from cold wind damage, which lets phoma in. Keep the canopy open.",
+        "spread": "It spreads by rain splash from leaf to leaf, so it moves most in wet, windy weeks.",
+        "safety": "When you spray, cover your skin, eyes and mouth, and keep children and animals away. Read the label for how much to use.",
+        "getHelp": "If young shoots are dying back, it is a good idea to show your extension officer."
+      },
+      "sw": {
+        "summary": "Hii inaonekana kuwa ugonjwa wa madoa ya phoma. Unaleta madoa ya kahawia iliyokolea kwenye majani, mara nyingi baada ya baridi na mvua maeneo ya juu.",
+        "doNow": "Tunashauri uondoe majani yenye madoa na upogoe matawi mazito ili hewa na mwanga viingie.",
+        "treatment": "Dawa ya kuvu yenye shaba au dawa ya kimfumo inaweza kusaidia. Epuka kumwagilia juu ya majani.",
+        "prevention": "Vizuizi vya upepo hulinda miti dhidi ya upepo baridi unaoruhusu phoma kuingia. Weka matawi wazi.",
+        "spread": "Huenea kwa matone ya mvua kutoka jani hadi jani, kwa hiyo huenea zaidi wiki za mvua na upepo.",
+        "safety": "Unaponyunyizia, funika ngozi, macho na mdomo, na weka watoto na wanyama mbali. Soma maelekezo kwenye lebo kuhusu kiasi cha kutumia.",
+        "getHelp": "Kama machipukizi machanga yanakauka, ni vizuri kumwonyesha afisa ugani."
+      }
+    },
+    "coffee_brown_eye": {
+      "en": {
+        "summary": "This looks like brown eye spot. It makes round brown spots with a light centre, like an eye. It is often a sign the tree is hungry.",
+        "doNow": "We suggest you check how the tree is fed first. This problem is often linked to too little nitrogen or potassium.",
+        "treatment": "A balanced fertiliser usually helps most. Use a copper spray only if the spots are spreading fast.",
+        "prevention": "Feed trees regularly, mulch the soil, and give young plants some shade.",
+        "spread": "It spreads slowly by wind and rain, mostly on weak or young trees.",
+        "safety": "When you spray, cover your skin, eyes and mouth, and keep children and animals away. Read the label for how much to use.",
+        "getHelp": "A soil test from your co-op or extension officer can show which nutrient is missing."
+      },
+      "sw": {
+        "summary": "Hii inaonekana kuwa ugonjwa wa doa la jicho la kahawia. Unaleta madoa ya mviringo ya kahawia yenye katikati nyeupe, kama jicho. Mara nyingi ni ishara kwamba mti una njaa.",
+        "doNow": "Tunashauri kwanza uangalie jinsi mti unavyolishwa. Tatizo hili mara nyingi linahusiana na upungufu wa naitrojeni au potasiamu.",
+        "treatment": "Mbolea iliyosawazishwa kwa kawaida husaidia zaidi. Tumia dawa ya shaba tu kama madoa yanaenea haraka.",
+        "prevention": "Lisha miti mara kwa mara, weka matandazo kwenye udongo, na wape miche michanga kivuli.",
+        "spread": "Huenea polepole kwa upepo na mvua, hasa kwenye miti dhaifu au michanga.",
+        "safety": "Unaponyunyizia, funika ngozi, macho na mdomo, na weka watoto na wanyama mbali. Soma maelekezo kwenye lebo kuhusu kiasi cha kutumia.",
+        "getHelp": "Kipimo cha udongo kutoka chama cha ushirika au afisa ugani kinaweza kuonyesha virutubisho vinavyokosekana."
+      }
+    },
+    "healthy": {
+      "en": {
+        "summary": "This leaf looks healthy. We did not see signs of disease.",
+        "doNow": "No action is needed now. Keep checking your trees, especially after rain.",
+        "treatment": "No treatment is needed. Keep feeding and pruning as usual.",
+        "prevention": "Regular pruning, weeding and feeding keep trees strong.",
+        "spread": "Nothing to spread. If nearby trees look sick, scan them too.",
+        "safety": "No spray is needed for a healthy tree.",
+        "getHelp": "If the tree looks weak even though the leaves look fine, your extension officer can help."
+      },
+      "sw": {
+        "summary": "Jani hili linaonekana zima. Hatukuona dalili za ugonjwa.",
+        "doNow": "Hakuna hatua inayohitajika sasa. Endelea kukagua miti yako, hasa baada ya mvua.",
+        "treatment": "Hakuna dawa inayohitajika. Endelea kulisha na kupogoa kama kawaida.",
+        "prevention": "Kupogoa, kupalilia na kulisha mara kwa mara huweka miti imara.",
+        "spread": "Hakuna kinachoenea. Kama miti ya jirani inaonekana kuugua, ipige picha pia.",
+        "safety": "Mti ulio mzima hauhitaji kunyunyiziwa dawa.",
+        "getHelp": "Kama mti unaonekana dhaifu ingawa majani ni mazuri, afisa ugani anaweza kusaidia."
+      }
+    },
+    "unknown": {
+      "en": {
+        "summary": "We are not sure what this is. The photo was not clear enough to say.",
+        "doNow": "Try another photo: one leaf, close up, in good daylight, showing the underside.",
+        "treatment": "We suggest you do not spray anything until the problem is known.",
+        "prevention": "Keep the tree's sick leaves away from other trees until you know more.",
+        "spread": "We cannot say how this spreads until we know what it is.",
+        "safety": "Do not use a spray without knowing the problem. It may not help and costs money.",
+        "getHelp": "If a clear photo still says 'not sure', it is a good idea to show the leaf to your extension officer."
+      },
+      "sw": {
+        "summary": "Hatuna uhakika hii ni nini. Picha haikuwa wazi vya kutosha.",
+        "doNow": "Jaribu picha nyingine: jani moja, karibu, kwenye mwanga mzuri wa mchana, likionyesha upande wa chini.",
+        "treatment": "Tunashauri usinyunyizie dawa yoyote hadi tatizo lijulikane.",
+        "prevention": "Weka majani yaliyougua mbali na miti mingine hadi ujue zaidi.",
+        "spread": "Hatuwezi kusema jinsi linavyoenea hadi tujue ni nini.",
+        "safety": "Usitumie dawa bila kujua tatizo. Huenda isisaidie na inagharimu pesa.",
+        "getHelp": "Kama picha iliyo wazi bado inasema 'sina uhakika', ni vizuri kumwonyesha afisa ugani jani hilo."
+      }
+    }
+  },
+  "general": {
+    "en": {
+      "outOfScope": "I can only help with this scan result. For other questions, it is a good idea to ask your extension officer or co-op."
+    },
+    "sw": {
+      "outOfScope": "Ninaweza kusaidia tu kuhusu matokeo ya picha hii. Kwa maswali mengine, ni vizuri kumuuliza afisa ugani au chama cha ushirika."
+    }
+  }
+}

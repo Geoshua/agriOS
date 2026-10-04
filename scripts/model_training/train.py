@@ -35,7 +35,7 @@ log = logging.getLogger("agrios-train")
 IMG_SIZE = 224
 BATCH_SIZE = 32
 PHASE1_EPOCHS = 10   # train head only
-PHASE2_EPOCHS = 20   # fine-tune top backbone layers
+PHASE2_EPOCHS = 40   # fine-tune top backbone layers (EarlyStopping usually ends it sooner)
 NUM_CLASSES = 5
 
 # BRACOL folder name → agriOS disease ID.
@@ -96,14 +96,30 @@ def check_classes(image_root: Path) -> list[str]:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
+    global IMG_SIZE
     parser = argparse.ArgumentParser(description="agriOS TFLite model training")
     parser.add_argument("--data-dir", required=True, help="Path to extracted BRACOL dataset")
     parser.add_argument("--output-dir", default="./output", help="Where to save model files")
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
+    parser.add_argument("--img-size", type=int, default=IMG_SIZE,
+                        help="Square input size. Lesions are small; >224 helps (ImageNet weights still load)")
     parser.add_argument("--phase1-epochs", type=int, default=PHASE1_EPOCHS)
     parser.add_argument("--phase2-epochs", type=int, default=PHASE2_EPOCHS)
+    parser.add_argument("--fine-tune-layers", type=int, default=60,
+                        help="How many top MobileNetV2 layers to unfreeze in phase 2")
+    parser.add_argument("--patience", type=int, default=10, help="EarlyStopping patience (epochs)")
+    parser.add_argument("--fine-tune-lr", type=float, default=5e-5,
+                        help="Phase 2 learning rate. Lower (3e-5) is steadier when unfreezing many layers")
+    parser.add_argument("--class-weight-power", type=float, default=0.75,
+                        help="Class weight = balanced_weight ** power. 1.0 = fully balanced; "
+                             "softened weights stop the model over-predicting rare classes")
+    parser.add_argument("--label-smoothing", type=float, default=0.1)
+    parser.add_argument("--quantization", choices=["dynamic", "int8"], default="dynamic",
+                        help="dynamic: int8 weights, float activations (measured ~1.5 pts below float). "
+                             "int8: full integer incl. activations (measured ~8 pts below float on BRACOL)")
     args = parser.parse_args()
 
+    IMG_SIZE = args.img_size
     data_dir = Path(args.data_dir).expanduser().resolve()
     output_dir = Path(args.output_dir).expanduser().resolve()
 
@@ -153,7 +169,11 @@ def main():
         shuffle=True,
     )
 
-    val_gen = augment.flow_from_directory(
+    # Validation is resized + rescaled only — no augmentation. Same split
+    # parameters so Keras picks the identical held-out 20%.
+    plain = ImageDataGenerator(rescale=1.0 / 255, validation_split=0.2)
+
+    val_gen = plain.flow_from_directory(
         image_root,
         target_size=(IMG_SIZE, IMG_SIZE),
         batch_size=args.batch_size,
@@ -170,6 +190,16 @@ def main():
     log.info("Index → agriOS mapping: %s", index_to_agrios)
     log.info("Train samples: %d | Val samples: %d", train_gen.samples, val_gen.samples)
 
+    # Balanced class weights (TRAINING.md Step 2b) — BRACOL is imbalanced and
+    # the rarer classes underfit without this.
+    counts = np.bincount(train_gen.classes, minlength=train_gen.num_classes)
+    class_weight = {
+        i: float((len(train_gen.classes) / (train_gen.num_classes * c)) ** args.class_weight_power)
+        for i, c in enumerate(counts) if c > 0
+    }
+    log.info("Train counts per class: %s", dict(enumerate(counts.tolist())))
+    log.info("Class weights: %s", class_weight)
+
     # ── Model ─────────────────────────────────────────────────────────────────
     log.info("Building MobileNetV2 (ImageNet weights)…")
     base = keras.applications.MobileNetV2(
@@ -179,26 +209,32 @@ def main():
     )
     base.trainable = False
 
-    model = keras.Sequential([
-        base,
-        keras.layers.GlobalAveragePooling2D(),
-        keras.layers.Dropout(0.3),
-        keras.layers.Dense(128, activation="relu"),
-        keras.layers.Dropout(0.2),
-        keras.layers.Dense(train_gen.num_classes, activation="softmax"),
-    ])
+    # Functional model so the backbone always runs in inference mode: its
+    # BatchNorm statistics stay at their ImageNet values while fine-tuning on a
+    # small dataset (unfrozen BN drifts and wrecks INT8 accuracy).
+    # Input stays in [0, 1] (what the app feeds); MobileNetV2's ImageNet
+    # weights expect [-1, 1], so rescale inside the model.
+    inputs = keras.Input(shape=(IMG_SIZE, IMG_SIZE, 3))
+    x = keras.layers.Rescaling(2.0, offset=-1.0)(inputs)
+    x = base(x, training=False)
+    x = keras.layers.GlobalAveragePooling2D()(x)
+    x = keras.layers.Dropout(0.3)(x)
+    x = keras.layers.Dense(128, activation="relu")(x)
+    x = keras.layers.Dropout(0.2)(x)
+    outputs = keras.layers.Dense(train_gen.num_classes, activation="softmax")(x)
+    model = keras.Model(inputs, outputs)
 
     model.compile(
         optimizer=keras.optimizers.Adam(1e-3),
-        loss="categorical_crossentropy",
+        loss=keras.losses.CategoricalCrossentropy(label_smoothing=args.label_smoothing),
         metrics=["accuracy"],
     )
 
     callbacks = [
-        keras.callbacks.EarlyStopping(patience=4, restore_best_weights=True),
+        keras.callbacks.EarlyStopping(patience=args.patience, restore_best_weights=True),
         keras.callbacks.ReduceLROnPlateau(factor=0.5, patience=2, min_lr=1e-6),
         keras.callbacks.ModelCheckpoint(
-            str(output_dir / "checkpoint_phase1.h5"),
+            str(output_dir / "checkpoint_phase1.keras"),
             save_best_only=True,
             monitor="val_accuracy",
         ),
@@ -207,24 +243,42 @@ def main():
     # ── Phase 1: train head only ───────────────────────────────────────────────
     log.info("Phase 1: training head only (%d epochs)…", args.phase1_epochs)
     t0 = time.time()
-    model.fit(train_gen, validation_data=val_gen, epochs=args.phase1_epochs, callbacks=callbacks)
+    model.fit(
+        train_gen,
+        validation_data=val_gen,
+        epochs=args.phase1_epochs,
+        callbacks=callbacks,
+        class_weight=class_weight,
+    )
     log.info("Phase 1 done in %.1f min", (time.time() - t0) / 60)
 
+    # Remember phase 1's result: fine-tuning a small dataset can make things
+    # worse, and the exported model must never be worse than this.
+    _, phase1_acc = model.evaluate(val_gen, verbose=0)
+    phase1_weights = model.get_weights()
+    log.info("Phase 1 val accuracy: %.4f", phase1_acc)
+
     # ── Phase 2: fine-tune top backbone layers ─────────────────────────────────
-    log.info("Phase 2: fine-tuning top 30 backbone layers (%d epochs)…", args.phase2_epochs)
+    log.info("Phase 2: fine-tuning top %d backbone layers (%d epochs)…", args.fine_tune_layers, args.phase2_epochs)
     base.trainable = True
-    for layer in base.layers[:-30]:
+    for layer in base.layers[:-args.fine_tune_layers]:
         layer.trainable = False
+    # Keep BatchNorm frozen while fine-tuning (Keras transfer-learning guide):
+    # unfreezing its gamma/beta made val accuracy drop ~10 points on the first
+    # phase-2 epoch in every earlier run.
+    for layer in base.layers:
+        if isinstance(layer, keras.layers.BatchNormalization):
+            layer.trainable = False
 
     callbacks[2] = keras.callbacks.ModelCheckpoint(
-        str(output_dir / "checkpoint_phase2.h5"),
+        str(output_dir / "checkpoint_phase2.keras"),
         save_best_only=True,
         monitor="val_accuracy",
     )
 
     model.compile(
-        optimizer=keras.optimizers.Adam(1e-4),
-        loss="categorical_crossentropy",
+        optimizer=keras.optimizers.Adam(args.fine_tune_lr),
+        loss=keras.losses.CategoricalCrossentropy(label_smoothing=args.label_smoothing),
         metrics=["accuracy"],
     )
 
@@ -234,27 +288,53 @@ def main():
         validation_data=val_gen,
         epochs=args.phase2_epochs,
         callbacks=callbacks,
+        class_weight=class_weight,
     )
     log.info("Phase 2 done in %.1f min", (time.time() - t0) / 60)
 
-    val_acc = max(history.history["val_accuracy"])
-    log.info("Best val accuracy: %.4f (%.1f%%)", val_acc, val_acc * 100)
+    _, phase2_acc = model.evaluate(val_gen, verbose=0)
+    if phase2_acc < phase1_acc:
+        log.info("Phase 2 (%.4f) worse than phase 1 (%.4f) — keeping phase 1 weights", phase2_acc, phase1_acc)
+        model.set_weights(phase1_weights)
+
+    # Score the weights actually exported (EarlyStopping restored the best).
+    _, val_acc = model.evaluate(val_gen, verbose=0)
+    log.info("Float val accuracy (exported weights): %.4f (%.1f%%)", val_acc, val_acc * 100)
 
     # ── TFLite INT8 export ────────────────────────────────────────────────────
-    log.info("Exporting TFLite INT8 model…")
+    log.info("Exporting TFLite model (%s quantisation)…", args.quantization)
+
+    # Calibrate INT8 ranges on ~100 un-augmented training images.
+    calib_gen = plain.flow_from_directory(
+        image_root,
+        target_size=(IMG_SIZE, IMG_SIZE),
+        batch_size=args.batch_size,
+        class_mode="categorical",
+        subset="training",
+        shuffle=True,
+        seed=42,
+    )
 
     def representative_dataset():
-        for images, _ in train_gen:
-            for img in images[:4]:
+        n = 0
+        for images, _ in calib_gen:
+            for img in images:
                 yield [np.expand_dims(img, 0).astype(np.float32)]
-            break
+                n += 1
+                if n >= 100:
+                    return
 
-    converter = tf.lite.TFLiteConverter.from_keras_model(model)
+    # Keras 3: export a SavedModel and convert from that — from_keras_model()
+    # is unreliable with Keras 3 models.
+    saved_model_dir = output_dir / "saved_model"
+    model.export(str(saved_model_dir))
+    converter = tf.lite.TFLiteConverter.from_saved_model(str(saved_model_dir))
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
-    converter.representative_dataset = representative_dataset
-    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-    converter.inference_input_type = tf.uint8
-    converter.inference_output_type = tf.float32
+    if args.quantization == "int8":
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.uint8
+        converter.inference_output_type = tf.float32
 
     tflite_bytes = converter.convert()
 
@@ -269,6 +349,9 @@ def main():
         "val_accuracy": float(val_acc),
         "num_classes": int(train_gen.num_classes),
         "input_size": IMG_SIZE,
+        # dynamic: float32 RGB in [0, 1]; int8: uint8 RGB in [0, 255]
+        "input_dtype": "uint8" if args.quantization == "int8" else "float32",
+        "quantization": args.quantization,
         "confidence_threshold": 0.60,
     }
     labels_path = output_dir / "labels.json"
@@ -285,6 +368,8 @@ def main():
     log.info("  Output: shape=%s  dtype=%s", out[0]["shape"], out[0]["dtype"])
 
     test = np.random.randint(0, 255, tuple(inp[0]["shape"]), dtype=np.uint8)
+    if inp[0]["dtype"] == np.float32:
+        test = test.astype(np.float32) / 255.0
     interpreter.set_tensor(inp[0]["index"], test)
     interpreter.invoke()
     log.info("  Test prediction (random noise): %s", interpreter.get_tensor(out[0]["index"]))

@@ -12,13 +12,14 @@
  * To switch modes:
  *   - Local server (tier 0): set LOCAL_SERVER_URL in lib/config.ts
  *   - HF online (tier 1): set HF_API_KEY below
- *   - TFLite (tier 2): uncomment TFLITE section, place model in assets/model/
+ *   - TFLite (tier 2): train (TRAINING.md), copy files into assets/model/ — auto-detected
  *   - Mock: default, no config needed
  */
 
 import { File } from 'expo-file-system';
 import diseasesData from '../assets/diseases.json';
 import { LOCAL_SERVER_URL } from './config';
+import { classifyWithTflite } from './tflite';
 
 export interface InferenceResult {
   diseaseId: string;
@@ -320,6 +321,18 @@ export async function runInference(
   // Tier 1: HF online inference
   const hfResult = await runHFInference(frameUri);
   if (hfResult) return hfResult;
+
+  // Tier 2: TFLite on-device (offline). Same threshold rule as every tier.
+  const tflite = await classifyWithTflite(frameUri);
+  if (tflite) {
+    const confident = tflite.confidence >= CONFIDENCE_THRESHOLD && DISEASE_CLASSES.includes(tflite.diseaseId);
+    return {
+      diseaseId: confident ? tflite.diseaseId : 'unknown',
+      confidence: tflite.confidence,
+      isMock: false,
+      source: 'local-tflite',
+    };
+  }
 
   // Tier 3: Mock cycling (always works)
   return runMockInference();
