@@ -46,6 +46,10 @@ interface ShambaStore {
   // Last known GPS — updated every 30s, passed to /classify for data contribution
   lastKnownLocation: { lat: number; lng: number } | null;
   setLastKnownLocation: (loc: { lat: number; lng: number } | null) => void;
+
+  // Demo map scenario (lib/demoScenario.ts) — shared by the map and settings.
+  demoMode: boolean;
+  setDemoMode: (on: boolean) => void;
 }
 
 export const useShambaStore = create<ShambaStore>((set) => ({
@@ -75,4 +79,7 @@ export const useShambaStore = create<ShambaStore>((set) => ({
 
   lastKnownLocation: null,
   setLastKnownLocation: (loc) => set({ lastKnownLocation: loc }),
+
+  demoMode: false,
+  setDemoMode: (on) => set({ demoMode: on }),
 }));

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import * as Location from 'expo-location';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { getAllIssues, IssueRecord } from '../../lib/db';
@@ -10,12 +10,12 @@ import { useShambaStore } from '../../lib/store';
 import { colors, heat, makeStyles, severityPin, spring, timing, useTheme } from '../../lib/theme';
 import { withAlpha } from '../../lib/useTween';
 import { SIDE, useChromeInsets } from '../../lib/layout';
-import { LOCAL_SERVER_URL } from '../../lib/config';
 import ScreenTransition from '../../components/glass/ScreenTransition';
 import Glass from '../../components/glass/Glass';
 import GlassSegmented from '../../components/glass/GlassSegmented';
 import PressableScale from '../../components/glass/PressableScale';
-import { Globe, Heat, Leaf, Locate, MapPin } from '../../components/glass/Icons';
+import { Gear, Globe, Heat, Leaf, Locate, MapPin } from '../../components/glass/Icons';
+import { fetchRegions } from '../../lib/community';
 import { buildDemoScenario, DEMO_CENTER, DEMO_PLACE } from '../../lib/demoScenario';
 import {
   BlockLabel,
@@ -43,7 +43,6 @@ const SEVERITY_RANK: Record<string, number> = { high: 4, medium: 3, low: 2, unkn
 const MAP_ZOOM = 17;
 const COMMUNITY_ZOOM = 10.5;
 const REGION_RADIUS_M = 6000;
-const HEATMAP_TIMEOUT_MS = 8000;
 
 export default function MapScreen() {
   const { width, height } = useWindowDimensions();
@@ -59,7 +58,8 @@ export default function MapScreen() {
 
   // Demo scenario: a rural farm with seeded pins, health and community data,
   // held in memory only (never written to the farmer's database).
-  const [demo, setDemo] = useState(false);
+  const demo = useShambaStore((s) => s.demoMode);
+  const setDemo = useShambaStore((s) => s.setDemoMode);
   const demoData = useMemo(() => (demo ? buildDemoScenario() : null), [demo]);
   const location: Location.LocationObject | null = demo
     ? { coords: { latitude: DEMO_CENTER.lat, longitude: DEMO_CENTER.lng, altitude: null, accuracy: 5, altitudeAccuracy: null, heading: null, speed: null }, timestamp: Date.now() }
@@ -118,35 +118,16 @@ export default function MapScreen() {
 
   useEffect(() => {
     if (layer !== 'community') return;
-    if (demoData) {
-      setRegions(demoData.regions);
-      setRegionsMeta({ total: demoData.regions.reduce((n, r) => n + r.total, 0), villages: demoData.regions.length });
-      setRegionsLoading(false);
-      return;
-    }
-    setRegionsLoading(true);
-    const base = LOCAL_SERVER_URL || 'http://localhost:7384';
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), HEATMAP_TIMEOUT_MS);
-    fetch(`${base}/heatmap`, { signal: controller.signal })
-      .then((res) => res.json())
-      .then((data) => {
-        setRegions(data.regions ?? []);
-        setRegionsMeta({ total: data.total ?? 0, villages: data.villages ?? 0 });
-      })
-      .catch(() => {
-        setRegions([]);
-        setRegionsMeta(null);
-      })
-      .finally(() => {
-        clearTimeout(timer);
-        setRegionsLoading(false);
-      });
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [layer, demoData]);
+    setRegionsLoading(true);
+    fetchRegions(demo, controller.signal).then((data) => {
+      if (controller.signal.aborted) return;
+      setRegions(data?.regions ?? []);
+      setRegionsMeta(data ? { total: data.total, villages: data.villages } : null);
+      setRegionsLoading(false);
+    });
+    return () => controller.abort();
+  }, [layer, demo]);
 
   useFocusEffect(
     useCallback(() => {
@@ -403,6 +384,11 @@ export default function MapScreen() {
                 <Leaf size={22} color={demo ? '#FFFFFF' : colors.primary} />
               </Glass>
               <Text style={styles.demoLabel}>{demo ? 'Exit demo' : 'Demo'}</Text>
+            </PressableScale>
+            <PressableScale onPress={() => router.push('/settings')} accessibilityRole="button" accessibilityLabel="Settings and community">
+              <Glass radius={24} style={styles.locate}>
+                <Gear color={c.label} />
+              </Glass>
             </PressableScale>
           </View>
         </View>
