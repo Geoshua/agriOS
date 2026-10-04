@@ -15,7 +15,8 @@ import ScreenTransition from '../../components/glass/ScreenTransition';
 import Glass from '../../components/glass/Glass';
 import GlassSegmented from '../../components/glass/GlassSegmented';
 import PressableScale from '../../components/glass/PressableScale';
-import { Globe, Heat, Locate, MapPin } from '../../components/glass/Icons';
+import { Globe, Heat, Leaf, Locate, MapPin } from '../../components/glass/Icons';
+import { buildDemoScenario, DEMO_CENTER, DEMO_PLACE } from '../../lib/demoScenario';
 import {
   BlockLabel,
   CommunityLegend,
@@ -52,9 +53,18 @@ export default function MapScreen() {
   const styles = useStyles();
   const storeIssues = useShambaStore((s) => s.issues);
 
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [gpsLocation, setLocation] = useState<Location.LocationObject | null>(null);
   const [locating, setLocating] = useState(true);
-  const [issues, setIssues] = useState<IssueRecord[]>([]);
+  const [dbIssues, setIssues] = useState<IssueRecord[]>([]);
+
+  // Demo scenario: a rural farm with seeded pins, health and community data,
+  // held in memory only (never written to the farmer's database).
+  const [demo, setDemo] = useState(false);
+  const demoData = useMemo(() => (demo ? buildDemoScenario() : null), [demo]);
+  const location: Location.LocationObject | null = demo
+    ? { coords: { latitude: DEMO_CENTER.lat, longitude: DEMO_CENTER.lng, altitude: null, accuracy: 5, altitudeAccuracy: null, heading: null, speed: null }, timestamp: Date.now() }
+    : gpsLocation;
+  const issues = demoData?.issues ?? dbIssues;
   const [layer, setLayer] = useState<Layer>('pins');
   const [selected, setSelected] = useState<{ issue: IssueRecord; x: number; y: number } | null>(null);
   const [soil, setSoil] = useState<SoilProfile | null>(null);
@@ -89,11 +99,16 @@ export default function MapScreen() {
   // Soil conditions for the field, fetched once we know where we are.
   const hasLocation = !!location;
   useEffect(() => {
-    if (!location || soil) return;
+    if (!location) return;
+    let cancelled = false;
+    setSoil(null);
     fetchSoilData(location.coords.latitude, location.coords.longitude)
-      .then((profile) => profile && setSoil(profile))
+      .then((profile) => !cancelled && profile && setSoil(profile))
       .catch(() => {});
-  }, [hasLocation]);
+    return () => {
+      cancelled = true;
+    };
+  }, [hasLocation, demo]);
   const soilAdvisory = soil ? getSoilAdvisory(soil) : null;
 
   // If GPS arrives after the map opened on logged scans, glide to the farmer.
@@ -103,6 +118,12 @@ export default function MapScreen() {
 
   useEffect(() => {
     if (layer !== 'community') return;
+    if (demoData) {
+      setRegions(demoData.regions);
+      setRegionsMeta({ total: demoData.regions.reduce((n, r) => n + r.total, 0), villages: demoData.regions.length });
+      setRegionsLoading(false);
+      return;
+    }
     setRegionsLoading(true);
     const base = LOCAL_SERVER_URL || 'http://localhost:7384';
     const controller = new AbortController();
@@ -125,7 +146,7 @@ export default function MapScreen() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [layer]);
+  }, [layer, demoData]);
 
   useFocusEffect(
     useCallback(() => {
@@ -193,6 +214,15 @@ export default function MapScreen() {
     );
   }
 
+  function toggleDemo() {
+    const next = !demo;
+    setSelected(null);
+    setSelectedRegion(null);
+    setDemo(next);
+    const focus = next ? DEMO_CENTER : gpsLocation ? { lat: gpsLocation.coords.latitude, lng: gpsLocation.coords.longitude } : null;
+    if (focus) mapRef.current?.recenter(focus, layer === 'community' ? COMMUNITY_ZOOM : MAP_ZOOM);
+  }
+
   function selectLayer(next: Layer) {
     setSelected(null);
     setSelectedRegion(null);
@@ -206,7 +236,8 @@ export default function MapScreen() {
 
   const popLeft = selected ? Math.max(16, Math.min(width - POPOVER_WIDTH - 16, selected.x - POPOVER_WIDTH / 2)) : 0;
   const subtitle =
-    layer === 'community'
+    (demo ? `${DEMO_PLACE} · ` : '') +
+    (layer === 'community'
       ? regionsLoading
         ? 'Loading regional data…'
         : regionsMeta && regionsMeta.total > 0
@@ -214,7 +245,7 @@ export default function MapScreen() {
           : 'No regional data yet'
       : mapped.length
         ? `${mapped.length} pin${mapped.length === 1 ? '' : 's'}${urgent ? ` · ${urgent} urgent` : ''}`
-        : 'No issues logged yet';
+        : 'No issues logged yet');
 
   const renderOverlays = (ctx: MapContext) => (
     <>
@@ -355,11 +386,25 @@ export default function MapScreen() {
             <Text style={styles.title} accessibilityRole="header">Field Map</Text>
             <Text style={styles.subtitle}>{subtitle}</Text>
           </View>
-          <PressableScale onPress={recenter} disabled={!location} accessibilityRole="button" accessibilityLabel="Center on my location">
-            <Glass radius={24} style={styles.locate}>
-              <Locate />
-            </Glass>
-          </PressableScale>
+          <View style={styles.mapButtons} pointerEvents="box-none">
+            <PressableScale onPress={recenter} disabled={!location} accessibilityRole="button" accessibilityLabel="Center on my location">
+              <Glass radius={24} style={styles.locate}>
+                <Locate />
+              </Glass>
+            </PressableScale>
+            {/* Floating demo toggle: rural farm with seeded pins, health and community data */}
+            <PressableScale
+              onPress={toggleDemo}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: demo }}
+              accessibilityLabel={demo ? 'Leave demo farm' : 'Show demo farm'}
+            >
+              <Glass radius={24} style={[styles.locate, demo && styles.demoOn]}>
+                <Leaf size={22} color={demo ? '#FFFFFF' : colors.primary} />
+              </Glass>
+              <Text style={styles.demoLabel}>{demo ? 'Exit demo' : 'Demo'}</Text>
+            </PressableScale>
+          </View>
         </View>
 
         <GlassSegmented
@@ -435,6 +480,9 @@ const useStyles = makeStyles((c) => ({
   title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.7, lineHeight: 40, color: c.label },
   subtitle: { fontSize: 16, fontWeight: '500', color: c.labelSecondary },
   locate: { width: 48, height: 48, marginTop: 4, alignItems: 'center', justifyContent: 'center' },
+  mapButtons: { alignItems: 'center', gap: 6 },
+  demoOn: { backgroundColor: colors.primary },
+  demoLabel: { marginTop: 2, fontSize: 12, fontWeight: '600', textAlign: 'center', color: c.label },
   layerSwitch: { alignSelf: 'flex-start', height: 44 },
   layerItem: { height: 38, paddingHorizontal: 16 },
   legend: { position: 'absolute', left: SIDE, right: SIDE },

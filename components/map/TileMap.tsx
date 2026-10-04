@@ -83,6 +83,11 @@ const TileMap = forwardRef<TileMapHandle, Props>(function TileMap({ center, zoom
   const Z0 = Math.round(zoom);
   const origin = useMemo(() => project(center.lat, center.lng, Z0), []); // fixed for the map's lifetime
   const [size, setSize] = useState({ w: 0, h: 0 });
+  // Gesture worklets run on the UI thread and can keep a stale copy of `size`
+  // from before layout ({0, 0}). That anchored pinch-zoom half a screen
+  // down-right of the fingers, so the map slid instead of zooming. Worklets
+  // read this shared value instead.
+  const viewSize = useSharedValue({ w: 0, h: 0 });
   const [tiles, setTiles] = useState<Tile[]>([]);
   const [prevTiles, setPrevTiles] = useState<Tile[]>([]);
   const lastZ = useRef<number | null>(null);
@@ -93,7 +98,12 @@ const TileMap = forwardRef<TileMapHandle, Props>(function TileMap({ center, zoom
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
   const s = useSharedValue(2 ** (zoom - Z0));
+  // Pinch and pan run simultaneously, so each keeps its own anchor. Sharing one
+  // (and both writing tx/ty every frame) made a pinch slide the map instead of
+  // zooming about the fingers.
   const start = useSharedValue({ tx: 0, ty: 0, s: 1, fx: 0, fy: 0 });
+  const panBase = useSharedValue({ x: 0, y: 0, pointers: 0 });
+  const pinching = useSharedValue(false);
   const lastPick = useSharedValue(0);
 
   const toWorld = useCallback(
@@ -151,6 +161,7 @@ const TileMap = forwardRef<TileMapHandle, Props>(function TileMap({ center, zoom
 
   function onLayout(e: LayoutChangeEvent) {
     const { width, height } = e.nativeEvent.layout;
+    viewSize.value = { w: width, h: height };
     if (width !== size.w || height !== size.h) setSize({ w: width, h: height });
   }
 
@@ -171,39 +182,53 @@ const TileMap = forwardRef<TileMapHandle, Props>(function TileMap({ center, zoom
   const pan = Gesture.Pan()
     .minDistance(4)
     .averageTouches(true)
-    .onStart(() => {
-      start.value = { ...start.value, tx: tx.value, ty: ty.value };
+    .onStart((e) => {
+      panBase.value = { x: tx.value - e.translationX, y: ty.value - e.translationY, pointers: e.numberOfPointers };
       if (onPanStart) runOnJS(onPanStart)();
     })
     .onUpdate((e) => {
-      tx.value = start.value.tx + e.translationX;
-      ty.value = start.value.ty + e.translationY;
+      // While pinching, the pinch owns the position; keep re-anchoring so the
+      // pan continues smoothly afterwards. Also re-anchor when a finger lifts
+      // or lands — the averaged touch point jumps then.
+      if (pinching.value || e.numberOfPointers !== panBase.value.pointers) {
+        panBase.value = { x: tx.value - e.translationX, y: ty.value - e.translationY, pointers: e.numberOfPointers };
+        return;
+      }
+      tx.value = panBase.value.x + e.translationX;
+      ty.value = panBase.value.y + e.translationY;
       maybePick();
     })
     .onEnd(() => finalPick());
 
   const pinch = Gesture.Pinch()
     .onStart((e) => {
-      start.value = { tx: tx.value, ty: ty.value, s: s.value, fx: e.focalX - size.w / 2, fy: e.focalY - size.h / 2 };
+      pinching.value = true;
+      start.value = { tx: tx.value, ty: ty.value, s: s.value, fx: e.focalX - viewSize.value.w / 2, fy: e.focalY - viewSize.value.h / 2 };
       if (onPanStart) runOnJS(onPanStart)();
     })
     .onUpdate((e) => {
       const st = start.value;
       const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, st.s * e.scale));
       const k = next / st.s;
-      // Keep the world point under the fingers fixed while scaling.
-      tx.value = st.fx - (st.fx - st.tx) * k;
-      ty.value = st.fy - (st.fy - st.ty) * k;
+      // The world point that was under the fingers stays under them — including
+      // when the fingers move together (two-finger pan).
+      const fx = e.focalX - viewSize.value.w / 2;
+      const fy = e.focalY - viewSize.value.h / 2;
+      tx.value = fx - (st.fx - st.tx) * k;
+      ty.value = fy - (st.fy - st.ty) * k;
       s.value = next;
       maybePick();
+    })
+    .onFinalize(() => {
+      pinching.value = false;
     })
     .onEnd(() => finalPick());
 
   const doubleTap = Gesture.Tap()
     .numberOfTaps(2)
     .onEnd((e) => {
-      const fx = e.x - size.w / 2;
-      const fy = e.y - size.h / 2;
+      const fx = e.x - viewSize.value.w / 2;
+      const fy = e.y - viewSize.value.h / 2;
       const next = Math.min(MAX_SCALE, s.value * 2);
       const k = next / s.value;
       const cfg = { duration: 280, easing: ease.emphasized };

@@ -49,9 +49,21 @@ async function getModel(): Promise<TfliteModel | null> {
   return loading;
 }
 
-/** Resize to SIZE×SIZE and decode to packed RGB bytes. */
+/**
+ * Centre-crop to a square, resize to SIZE×SIZE and decode to packed RGB bytes.
+ *
+ * The crop matters: squashing a whole portrait camera frame into a square
+ * distorts the leaf far more than training did (BRACOL photos are 2:1
+ * landscape). Measured on an emulator frame of a rust leaf: whole frame →
+ * rust 0.73; centre square → rust 0.96.
+ */
 async function toRgb(frameUri: string): Promise<Uint8Array> {
-  const ref = await ImageManipulator.manipulate(frameUri).resize({ width: SIZE, height: SIZE }).renderAsync();
+  const full = await ImageManipulator.manipulate(frameUri).renderAsync();
+  const side = Math.min(full.width, full.height);
+  const ref = await ImageManipulator.manipulate(full)
+    .crop({ originX: Math.floor((full.width - side) / 2), originY: Math.floor((full.height - side) / 2), width: side, height: side })
+    .resize({ width: SIZE, height: SIZE })
+    .renderAsync();
   const small = await ref.saveAsync({ format: SaveFormat.JPEG, compress: 0.95 });
   const file = new File(small.uri);
   const bytes = await file.bytes();
