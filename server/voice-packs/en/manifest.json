@@ -1,0 +1,43 @@
+{
+  "code": "en",
+  "name": "English",
+  "nativeName": "English",
+  "version": 1791095452,
+  "provider": "mms",
+  "voice": "facebook/mms-tts-eng",
+  "reviewed": true,
+  "synthetic": true,
+  "clips": {
+    "coffee_leaf_rust": {
+      "file": "coffee_leaf_rust.mp3",
+      "bytes": 142388,
+      "durationSec": 23.64
+    },
+    "coffee_leaf_miner": {
+      "file": "coffee_leaf_miner.mp3",
+      "bytes": 114956,
+      "durationSec": 19.08
+    },
+    "coffee_phoma": {
+      "file": "coffee_phoma.mp3",
+      "bytes": 123812,
+      "durationSec": 20.54
+    },
+    "coffee_brown_eye": {
+      "file": "coffee_brown_eye.mp3",
+      "bytes": 108908,
+      "durationSec": 18.07
+    },
+    "healthy": {
+      "file": "healthy.mp3",
+      "bytes": 78020,
+      "durationSec": 12.89
+    },
+    "unknown": {
+      "file": "unknown.mp3",
+      "bytes": 83420,
+      "durationSec": 13.82
+    }
+  },
+  "totalBytes": 651504
+}

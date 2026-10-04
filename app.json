@@ -8,7 +8,6 @@
     "scheme": "agrios",
     "assetBundlePatterns": [
       "assets/**",
-      "assets/audio/**",
       "assets/model/**"
     ],
     "ios": {

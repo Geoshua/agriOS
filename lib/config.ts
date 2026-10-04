@@ -21,3 +21,11 @@ export const CLOUD_SERVER_URL = ''; // e.g. 'https://agrios.example.com'
  * opt-in ~382 MB download either way.
  */
 export const ON_DEVICE_LLM_ROUTER = false;
+
+/**
+ * Internet fallback for voice-pack downloads, used when the co-op hub isn't
+ * reachable. Points at the packs committed under server/voice-packs/ in the
+ * repo (works while the repository is public). Leave empty to download from
+ * the hub only.
+ */
+export const VOICE_PACK_BASE_URL = 'https://raw.githubusercontent.com/Geoshua/agriOS/main/server/voice-packs';

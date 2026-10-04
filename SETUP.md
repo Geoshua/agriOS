@@ -28,13 +28,19 @@ Replace the generated files with those in this repo:
 - `tsconfig.json`
 - `app.json`
 
-## 4. Generate audio (optional but recommended)
+## 4. Voice packs (optional — already committed)
+
+Spoken advice comes from per-language voice packs in `server/voice-packs/`
+(Gĩkũyũ and English are committed). To rebuild them:
 
 ```bash
-ELEVENLABS_API_KEY=your_key npm run generate-audio
+pip install torch transformers imageio-ffmpeg   # CPU is fine
+npm run build-voice-packs                        # ELEVENLABS_API_KEY=... for ElevenLabs voices
 ```
 
-If you skip this, the app uses on-device TTS via `expo-speech` (see *Audio fallback* below).
+Phones download packs in **Settings → Voice & Language** (from the hub over
+LAN, else the internet). Without a pack, the app uses on-device speech. Full
+details: `docs/VOICE.md`.
 
 ## 5. Run
 
@@ -51,17 +57,6 @@ npm run download-model
 ```
 
 Then uncomment the real inference code in `lib/inference.ts`.
-
-## Audio fallback
-
-The advisory sheet uses on-device TTS by default. Once the ElevenLabs MP3s are
-generated, switch the import in `components/advisory/parts.tsx`:
-```ts
-// from:
-import { playAdvisory, stopAll } from '../AudioPlayerFallback';
-// to:
-import { playAdvisory, stopAll } from '../AudioPlayer';
-```
 
 ## Map tiles
 

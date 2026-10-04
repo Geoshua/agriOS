@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "packs": [
+    {
+      "code": "en",
+      "name": "English",
+      "nativeName": "English",
+      "region": "International · demo and extension officers",
+      "provider": "elevenlabs",
+      "deviceTts": "en-US",
+      "sttLanguage": "en",
+      "approxSizeKb": 640,
+      "reviewed": true
+    },
+    {
+      "code": "kik",
+      "name": "Kikuyu",
+      "nativeName": "Gĩkũyũ",
+      "region": "Central Kenya · Arabica coffee highlands",
+      "provider": "mms",
+      "deviceTts": null,
+      "sttLanguage": "sw",
+      "approxSizeKb": 720,
+      "reviewed": false
+    }
+  ]
+}
