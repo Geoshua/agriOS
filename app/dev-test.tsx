@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { ScrollView, Text } from 'react-native';
+import { Pressable, ScrollView, Text } from 'react-native';
 import { Directory, Paths } from 'expo-file-system';
 import { classifyWithTflite, TFLITE_AVAILABLE } from '../lib/tflite';
 import { answerQuestion, getResponse, Intent } from '../lib/advisor';
@@ -37,9 +37,11 @@ const QUESTIONS: [string, Intent][] = [
 
 export default function DevTest() {
   const [lines, setLines] = useState<string[]>([]);
+  const [run, setRun] = useState(0); // the test (incl. the slow LLM) starts only when tapped
 
   useEffect(() => {
-    if (!__DEV__) return;
+    if (!__DEV__ || run === 0) return;
+    setLines([]);
     const log = (s: string) => { console.log(`[devtest] ${s}`); setLines((l) => [...l, s]); };
 
     (async () => {
@@ -93,12 +95,15 @@ export default function DevTest() {
       await releaseLocalLlm();
       log('DONE');
     })().catch((e) => log(`ERROR ${String(e)}`));
-  }, []);
+  }, [run]);
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#fff' }} contentContainerStyle={{ padding: 16, paddingTop: 60, gap: 12 }}>
       {/* The real Ask UI, for a visual check (rust diagnosis) */}
       <AskAdvisor diseaseId="coffee_leaf_rust" />
+      <Pressable onPress={() => setRun((r) => r + 1)} style={{ minHeight: 48, borderRadius: 24, backgroundColor: '#2D6A4F', alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Run end-to-end test</Text>
+      </Pressable>
       {lines.map((l, i) => <Text key={i} style={{ fontSize: 12, fontFamily: 'monospace', color: '#000' }}>{l}</Text>)}
     </ScrollView>
   );

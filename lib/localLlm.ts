@@ -80,7 +80,8 @@ async function getContext(): Promise<LlamaContext | null> {
 export async function releaseLocalLlm(): Promise<void> {
   const c = ctx;
   ctx = null;
-  await c?.release().catch(() => {});
+  if (!c) return;
+  try { await Promise.resolve(c.release() as unknown); } catch { /* already released */ }
 }
 
 async function complete(c: LlamaContext, system: string, question: string, extra: object): Promise<string> {
@@ -94,6 +95,16 @@ async function complete(c: LlamaContext, system: string, question: string, extra
     ...extra,
   });
   return res.text ?? '';
+}
+
+/**
+ * stopCompletion() is typed as a Promise but the native (JSI) build returns
+ * undefined on Android, so never chain on it directly.
+ */
+function stopSafely(c: LlamaContext) {
+  try {
+    Promise.resolve(c.stopCompletion() as unknown).catch(() => {});
+  } catch { /* already stopped */ }
 }
 
 /**
@@ -127,7 +138,7 @@ export async function routeWithLocalLlm(question: string, timeoutMs = 8000): Pro
   })();
 
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<null>((res) => { timer = setTimeout(() => { c.stopCompletion().catch(() => {}); res(null); }, timeoutMs); });
+  const timeout = new Promise<null>((res) => { timer = setTimeout(() => { stopSafely(c); res(null); }, timeoutMs); });
   try {
     return await Promise.race([work, timeout]);
   } catch {
