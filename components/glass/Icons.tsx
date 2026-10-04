@@ -99,6 +99,15 @@ export function MapFold({ size = 24, color = '#fff' }: IconProps) {
   );
 }
 
+export function ChatBubble({ size = 24, color = '#fff' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color, 2)}>
+      <Path d="M5 4.5h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-7l-4.5 3.5V17.5H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z" />
+      <Path d="M10 9a2 2 0 1 1 2.7 1.9c-.5.2-.7.6-.7 1.1M12 14.5h.01" />
+    </Svg>
+  );
+}
+
 export function BarChart({ size = 24, color = '#fff' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color, 2)}>

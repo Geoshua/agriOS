@@ -19,6 +19,7 @@ import BrandMark from '../../components/glass/BrandMark';
 import { Check, Download, Pause, Speaker, Trash } from '../../components/glass/Icons';
 import { colors, makeStyles, spring, status, timing, useTheme } from '../../lib/theme';
 import { useChromeInsets } from '../../lib/layout';
+import ReadAloudButton from '../../components/ReadAloudButton';
 import { useShambaStore } from '../../lib/store';
 import { saveSettings } from '../../lib/settings';
 import { playAdvisory, stopAll } from '../../lib/voice';
@@ -129,6 +130,16 @@ export default function SettingsScreen() {
             <Text style={styles.title} accessibilityRole="header">Settings</Text>
             <Text style={styles.subtitle}>Everything here works without internet.</Text>
           </View>
+          <ReadAloudButton
+            text={() => {
+              const installed = VOICE_PACKS.filter((p) => states[p.code]?.kind === 'installed').map((p) => p.name);
+              return (
+                `Settings. Here you choose the language for spoken advice. Now it is ${selected?.name ?? voiceLanguage}. ` +
+                (installed.length ? `Downloaded: ${installed.join(' and ')}. ` : 'No language is downloaded yet. ') +
+                'Tap a language to choose it. Tap the arrow to download it once, near the co-op hub. Then it works with no signal.'
+              );
+            }}
+          />
         </Animated.View>
 
         <Animated.View entering={enter(1)} layout={layoutTransition} style={styles.section}>

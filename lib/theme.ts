@@ -150,6 +150,8 @@ const glassShared = {
   lensEdge: EMERALD_BRIGHT,
   /** Content colour on the lens. */
   active: ON_EMERALD,
+  /** Same as `active` — the name main's segmented controls use for content on the lens. */
+  selected: ON_EMERALD,
   idle: '#EFE8D8',
   /** Accent colour for icons that are not on the lens. */
   accent: EMERALD_BRIGHT,

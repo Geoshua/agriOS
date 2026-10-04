@@ -68,6 +68,21 @@ fetched at the moment of advice.
 
 Users pick and download packs in **Settings → Voice & Language**.
 
+### Read-aloud and the Ask chat
+- Every page has a **speaker button** (`components/ReadAloudButton.tsx`) that
+  reads a short summary of the page — for farmers who can't read the text.
+  Each screen builds its own plain-language summary from the data on screen.
+- The **Ask** tab (`app/(tabs)/chat.tsx`) answers questions from local data
+  only (`lib/chat.ts`). Picture buttons ask common questions with one tap and
+  the answer is spoken. Questions can be typed or spoken (voice → Whisper,
+  online only; keywords include common Swahili words).
+- **Known gap:** page summaries and chat answers are generated English text, so
+  they are spoken by the phone's **English** voice (`speakText` in
+  `lib/voice.ts`). Only fixed disease advice has Gĩkũyũ clips: a chat answer
+  about a disease plays that clip when a non-English pack is selected.
+  Gĩkũyũ read-aloud needs translated phrase templates reviewed by a native
+  speaker (then pre-generated as clips, like the packs).
+
 ## 3. Voice providers
 
 ### Gĩkũyũ → Meta MMS-TTS (`facebook/mms-tts-kik`)

@@ -15,6 +15,7 @@ import ScreenTransition from '../../components/glass/ScreenTransition';
 import PressableScale from '../../components/glass/PressableScale';
 import { Camera, Emblem, LookAround } from '../../components/glass/Icons';
 import ScanTopBar from '../../components/scan/ScanTopBar';
+import ReadAloudButton from '../../components/ReadAloudButton';
 import ARSpots from '../../components/scan/ARSpots';
 import CameraGuides from '../../components/scan/CameraGuides';
 import CaptureButton from '../../components/scan/CaptureButton';
@@ -187,6 +188,11 @@ export default function ScanScreen() {
     return (
       <ScreenTransition background={colors.bg} statusBar="light">
         <View style={styles.permission}>
+          <ReadAloudButton
+            tone="dark"
+            style={styles.permissionSpeak}
+            text="To check your coffee leaves, this app needs the camera. Tap the green button to allow the camera."
+          />
           <View style={styles.permissionArt}>
             <Emblem size={72} />
           </View>
@@ -332,6 +338,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   demoButtonText: { color: colors.cream, fontSize: 17, fontWeight: '700' },
+  permissionSpeak: { position: 'absolute', top: 64, right: 20 },
   networkPill: {
     position: 'absolute',
     alignSelf: 'center',

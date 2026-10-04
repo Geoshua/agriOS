@@ -26,6 +26,7 @@ import { plantLabel } from '../../lib/plants';
 import { LOCAL_SERVER_URL } from '../../lib/config';
 import { colors, makeStyles, onColor, sentenceCase, severityPin, status, useTheme } from '../../lib/theme';
 import { useChromeInsets } from '../../lib/layout';
+import ReadAloudButton from '../ReadAloudButton';
 
 // Chip fills; text colour comes from onColor() so every chip reads ≥4.5:1.
 const URGENCY: Record<Suggestion['urgency'], { word: string; color: string }> = {
@@ -71,9 +72,21 @@ export default function SubjectReport({ subject }: { subject: Subject }) {
             <Text style={styles.backText}>Plants</Text>
           </Glass>
         </PressableScale>
+        {data && <ReadAloudButton text={() => subjectPageText(data, picked)} size={44} />}
       </View>
     </ScreenTransition>
   );
+}
+
+/** Spoken summary: health, trend, last scan, and the suggested next step. */
+function subjectPageText(data: SubjectData, picked: number): string {
+  const { insight } = data;
+  const { health } = insight;
+  const s = insight.suggestions[picked] ?? insight.suggestions[0];
+  const last = insight.lastScan ? ` Last scan: ${insight.lastScan.diseaseName}.` : ' No scans yet.';
+  const trend = insight.trend !== 'new' ? ` ${TREND_WORD[insight.trend]}.` : '';
+  const next = s ? ` Do this next: ${s.title}. ${s.why}` : ' Nothing to do right now.';
+  return `${data.title}: ${LEVEL_WORD[health.level]}.${trend}${last}${next}`;
 }
 
 function Report({ data, picked, onPick }: { data: SubjectData; picked: number; onPick: (i: number) => void }) {
@@ -295,7 +308,7 @@ function OfficerCard({ data }: { data: SubjectData }) {
 const useStyles = makeStyles((c) => ({
   content: { paddingHorizontal: 16, gap: 22 },
   missing: { fontSize: 16, color: c.labelSecondary, textAlign: 'center', marginTop: 80 },
-  backRow: { position: 'absolute', left: 16 },
+  backRow: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   back: { flexDirection: 'row', alignItems: 'center', gap: 2, height: 44, paddingLeft: 8, paddingRight: 14 },
   backText: { fontSize: 17, fontWeight: '600', color: c.label },
   statusCard: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, borderRadius: 28, backgroundColor: c.card },

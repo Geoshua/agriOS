@@ -9,6 +9,7 @@ export default function TabLayout() {
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.bg } }}
     >
       <Tabs.Screen name="scan" options={{ title: 'Scan' }} />
+      <Tabs.Screen name="chat" options={{ title: 'Ask' }} />
       <Tabs.Screen name="map" options={{ title: 'Field Map' }} />
       <Tabs.Screen name="plants" options={{ title: 'My Plants' }} />
       <Tabs.Screen name="report" options={{ title: 'Report' }} />

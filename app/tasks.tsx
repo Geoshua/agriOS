@@ -18,7 +18,8 @@ import TaskRow from '../components/tasks/TaskRow';
 import WateringCard from '../components/tasks/WateringCard';
 import AddTaskForm from '../components/tasks/AddTaskForm';
 import { completeItem, deleteItem, snoozeItem, subjectLabel, Undo, useTasks } from '../components/tasks/useTasks';
-import type { TaskItem } from '../lib/tasks';
+import { dueLabel, type TaskItem } from '../lib/tasks';
+import ReadAloudButton from '../components/ReadAloudButton';
 import { colors, makeStyles, status, useTheme } from '../lib/theme';
 import { useChromeInsets } from '../lib/layout';
 
@@ -65,6 +66,17 @@ export default function TasksScreen() {
   const shownWater = showAllWater || dueBlocks.length === 0 ? [...blocks, ...trees] : [...dueBlocks, ...trees.filter((t) => t.status.dueToday)];
   const hiddenWater = blocks.length + trees.length - shownWater.length;
   const openCount = data ? data.list.open.length : 0;
+
+  /** Spoken summary: what needs water, then the first few jobs. */
+  function tasksPageText(): string {
+    if (!data) return 'Your to do list is loading.';
+    const water = blocks.filter((w) => w.status.dueToday).map((w) => w.label);
+    const waterLine = water.length ? `Needs water now: ${water.join(', ')}.` : 'No block needs water today.';
+    const open = data.list.open;
+    if (open.length === 0) return `To do. ${waterLine} Nothing else to do right now.`;
+    const first = open.slice(0, 4).map((t, i) => `${i + 1}. ${t.title}, ${label(t)}, ${dueLabel(t.dueAt, data.now).toLowerCase()}.`).join(' ');
+    return `To do. ${waterLine} You have ${open.length} ${open.length === 1 ? 'job' : 'jobs'}. ${first} Tap the circle when a job is done.`;
+  }
 
   return (
     <ScreenTransition background={c.groundGrouped}>
@@ -165,6 +177,7 @@ export default function TasksScreen() {
             <Text style={styles.backText}>Back</Text>
           </Glass>
         </PressableScale>
+        <ReadAloudButton text={() => tasksPageText()} size={44} />
       </View>
 
       {toast && (
@@ -222,7 +235,7 @@ const useStyles = makeStyles((c) => ({
   emptyCheck: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   emptyText: { fontSize: 17, fontWeight: '600', color: c.labelSecondary },
   note: { fontSize: 13, lineHeight: 18, color: c.labelTertiary, paddingHorizontal: 4, fontStyle: 'italic' },
-  backRow: { position: 'absolute', left: 16 },
+  backRow: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   back: { flexDirection: 'row', alignItems: 'center', gap: 2, height: 44, paddingLeft: 8, paddingRight: 14 },
   backText: { fontSize: 17, fontWeight: '600', color: c.label },
   toastWrap: { position: 'absolute', left: 16, right: 16 },

@@ -15,6 +15,7 @@ import BrandMark from '../../components/glass/BrandMark';
 import { ChevronRight, Leaf, Minus, Sparkle, TrendDown, TrendUp } from '../../components/glass/Icons';
 import { CONFIDENCE_WORD, HealthRing, LEVEL_COLOR, LEVEL_WORD, TREND_WORD } from '../../components/insights/Visuals';
 import TasksSummary from '../../components/tasks/TasksSummary';
+import ReadAloudButton from '../../components/ReadAloudButton';
 
 const layoutTransition = LinearTransition.springify().damping(24).stiffness(220);
 const enter = (i: number) => FadeInDown.duration(360).delay(60 + i * 60);
@@ -145,6 +146,7 @@ export default function PlantsScreen() {
             <Text style={styles.title} accessibilityRole="header">Plants</Text>
             <Text style={styles.subtitle}>{subtitle}</Text>
           </View>
+          <ReadAloudButton text={() => plantsPageText(blocks, trees)} />
         </Animated.View>
 
         <Animated.View entering={enter(1)} layout={layoutTransition}>
@@ -186,6 +188,21 @@ export default function PlantsScreen() {
       </ScrollView>
     </ScreenTransition>
   );
+}
+
+/** Spoken summary: each block's health, then the trees that need care. */
+function plantsPageText(blocks: BlockRow[], trees: TreeRow[]): string {
+  const blockLines = blocks.map(({ block, insight }) => {
+    const next = insight.suggestions[0];
+    return `Block ${block}: ${LEVEL_WORD[insight.health.level]}${next ? `. Next: ${next.title}` : ''}.`;
+  });
+  const needCare = trees.filter((t) => t.insight.health.level === 'sick' || t.insight.health.level === 'watch');
+  const treeLine = trees.length === 0
+    ? 'You have no tagged trees yet.'
+    : needCare.length === 0
+      ? `All ${trees.length} tagged trees look fine.`
+      : `Trees that need care: ${needCare.slice(0, 5).map((t) => `${t.label}, ${LEVEL_WORD[t.insight.health.level]}`).join('; ')}.`;
+  return `Your plants. ${blockLines.join(' ')} ${treeLine} Tap a block or a tree to see more.`;
 }
 
 function BlockCard({ row }: { row: BlockRow }) {

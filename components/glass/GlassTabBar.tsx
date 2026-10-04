@@ -8,13 +8,13 @@
  * - While the details sheet is up it slides away.
  */
 
-import React, { useEffect } from 'react';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Keyboard, StyleSheet, useWindowDimensions } from 'react-native';
 import type { Tabs } from 'expo-router';
 import Animated, { interpolate, Extrapolation, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import GlassSegmented, { SegmentItem } from './GlassSegmented';
 import PressableScale from './PressableScale';
-import { BarChart, Gear, Leaf, MapFold, ScanFrame } from './Icons';
+import { BarChart, ChatBubble, Gear, Leaf, MapFold, ScanFrame } from './Icons';
 import { spring, timing, useTheme } from '../../lib/theme';
 import { useShambaStore } from '../../lib/store';
 import { TAB_BAR_HEIGHT, TAB_ITEM, MINI_SIZE, SIDE, useChromeInsets } from '../../lib/layout';
@@ -23,11 +23,12 @@ import { TAB_BAR_HEIGHT, TAB_ITEM, MINI_SIZE, SIDE, useChromeInsets } from '../.
 type BottomTabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs>['tabBar']>>[0];
 
 const TAB_META: Record<string, Omit<SegmentItem, 'key'>> = {
-  scan: { label: 'Scan', icon: (c) => <ScanFrame size={26} color={c} /> },
-  map: { label: 'Field Map', icon: (c) => <MapFold size={26} color={c} /> },
-  plants: { label: 'Plants', accessibilityLabel: 'My Plants', icon: (c) => <Leaf size={26} color={c} /> },
-  report: { label: 'Report', icon: (c) => <BarChart size={26} color={c} /> },
-  settings: { label: 'Settings', icon: (c) => <Gear size={26} color={c} /> },
+  scan: { label: 'Scan', icon: (c) => <ScanFrame color={c} /> },
+  chat: { label: 'Ask', accessibilityLabel: 'Ask a question', icon: (c) => <ChatBubble color={c} /> },
+  map: { label: 'Map', accessibilityLabel: 'Field Map', icon: (c) => <MapFold color={c} /> },
+  plants: { label: 'Plants', accessibilityLabel: 'My Plants', icon: (c) => <Leaf size={24} color={c} /> },
+  report: { label: 'Report', icon: (c) => <BarChart color={c} /> },
+  settings: { label: 'Settings', icon: (c) => <Gear color={c} /> },
 };
 
 export default function GlassTabBar({ state, navigation }: BottomTabBarProps) {
@@ -40,7 +41,9 @@ export default function GlassTabBar({ state, navigation }: BottomTabBarProps) {
   const routeName = state.routes[state.index]?.name;
   const onScan = routeName === 'scan';
   const minimized = onScan && scanMode === 'camera';
-  const hidden = onScan && scanMode === 'details';
+  // Also slides away while typing, so it never covers a text box (Android resizes the screen for the keyboard).
+  const keyboard = useKeyboardVisible();
+  const hidden = (onScan && scanMode === 'details') || keyboard;
 
   const mini = useSharedValue(minimized ? 1 : 0);
   const hide = useSharedValue(hidden ? 1 : 0);
@@ -114,6 +117,19 @@ export default function GlassTabBar({ state, navigation }: BottomTabBarProps) {
       }
     />
   );
+}
+
+function useKeyboardVisible() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  return visible;
 }
 
 const styles = StyleSheet.create({

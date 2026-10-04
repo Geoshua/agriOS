@@ -102,7 +102,10 @@ export default function GlassSegmented({
   const measured = useSharedValue(0);
 
   const animatedTone = typeof tone !== 'string' ? (tone as SharedValue<number>) : null;
-  const staticPalette: SegmentPalette | null = animatedTone ? null : { ...glass[tone as GlassTone], ...palette };
+  const base = glass[tone as GlassTone];
+  const staticPalette: SegmentPalette | null = animatedTone
+    ? null
+    : { active: base?.selected, idle: base?.idle, lens: base?.lens, lensEdge: base?.lensEdge, ...palette };
 
   useEffect(() => {
     position.value = withSpring(selectedIndex, spring.snappy);
@@ -216,8 +219,8 @@ function SegmentButton({
     : [
         { color: glass.dark.idle, active: false, light: false },
         { color: glass.light.idle, active: false, light: true },
-        { color: glass.dark.active, active: true, light: false },
-        { color: glass.light.active, active: true, light: true },
+        { color: glass.dark.selected, active: true, light: false },
+        { color: glass.light.selected, active: true, light: true },
       ];
 
   return (

@@ -16,6 +16,7 @@ import ScreenTransition from '../../components/glass/ScreenTransition';
 import PressableScale from '../../components/glass/PressableScale';
 import BrandMark from '../../components/glass/BrandMark';
 import { CheckCircle, ChevronRight, Clock, Leaf, Locate, Repeat, ScanFrame, Sun } from '../../components/glass/Icons';
+import ReadAloudButton from '../../components/ReadAloudButton';
 
 const layoutTransition = LinearTransition.springify().damping(24).stiffness(220);
 const enter = (i: number) => FadeInDown.duration(360).delay(60 + i * 60);
@@ -96,6 +97,21 @@ export default function ReportScreen() {
             <Text style={styles.date}>{today}</Text>
             <Text style={styles.title} accessibilityRole="header">Today</Text>
           </View>
+          <ReadAloudButton
+            text={() => {
+              if (issues.length === 0) return `${today}. No scans today. Go to the field and scan your coffee leaves.`;
+              const list = found.map(([, d]) => `${d.name}, ${d.count} ${d.count === 1 ? 'time' : 'times'}`).join('; ');
+              const worst = farm?.worstBlock;
+              const next = worst?.insight.suggestions[0];
+              const worstLine = worst ? ` Block ${worst.block} needs the most care${next ? `: ${next.title}` : ''}.` : '';
+              return (
+                `${today}. You made ${issues.length} ${issues.length === 1 ? 'scan' : 'scans'} today. ` +
+                `${urgentCount} urgent. ${healthyCount} healthy.` +
+                (list ? ` Found today: ${list}.` : '') +
+                worstLine
+              );
+            }}
+          />
         </Animated.View>
 
         <Animated.View entering={enter(1)} style={styles.tiles}>
